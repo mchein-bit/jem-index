@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JEM Index Builder</title>
+<!--
+  FONT EMBEDDING: Works offline using Georgia + system fonts.
+  For fully embedded fonts run: python3 embed-fonts.py jem-index-builder.html
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --sidebar-w:300px;--topbar-h:44px;
+  --bg:#f0ede6;--sb:#f7f5f0;--sbb:#ddd9d0;--paper:#fffef9;
+  --ink:#1a1a18;--muted:#666460;--accent:#2a2a6e;--danger:#b91c1c;
+  --ui:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --serif:'Playfair Display',Georgia,'Times New Roman',serif;
+}
+body{font-family:var(--ui);background:var(--bg);color:var(--ink);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* TOPBAR */
+#topbar{height:var(--topbar-h);background:var(--sb);border-bottom:1px solid var(--sbb);display:flex;align-items:center;padding:0 12px;gap:8px;flex-shrink:0;z-index:100;overflow-x:auto}
+.logo{font-family:var(--serif);font-size:14px;font-weight:700;color:var(--accent);white-space:nowrap;margin-right:4px}
+.section-tabs{display:flex;gap:3px;flex:1;overflow-x:auto}
+.sec-tab{padding:4px 10px;border:none;border-radius:5px;font-size:11px;font-family:var(--ui);cursor:pointer;background:transparent;color:var(--muted);white-space:nowrap;transition:all .15s}
+.sec-tab:hover{background:#e8e4dc}
+.sec-tab.active{background:var(--accent);color:#fff;font-weight:500}
+.sec-tab .cnt{font-size:9px;opacity:.7;margin-left:2px}
+.mode-toggle{display:flex;background:#e8e4dc;border-radius:6px;padding:2px;gap:2px;flex-shrink:0}
+.mode-toggle button{padding:4px 10px;border:none;background:transparent;border-radius:4px;font-size:11px;font-family:var(--ui);cursor:pointer;color:var(--muted);transition:all .15s}
+.mode-toggle button.active{background:var(--paper);color:var(--ink);font-weight:500;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+#btn-export{padding:5px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:11px;font-family:var(--ui);font-weight:500;cursor:pointer;flex-shrink:0}
+#flag-count{font-size:11px;color:var(--danger);font-weight:500;white-space:nowrap;display:none}
+
+/* LAYOUT */
+#main{display:flex;flex:1;overflow:hidden}
+
+/* SIDEBAR */
+#sidebar{width:var(--sidebar-w);background:var(--sb);border-right:1px solid var(--sbb);overflow-y:auto;flex-shrink:0}
+.sb-sec{border-bottom:1px solid var(--sbb)}
+.sb-sec summary{padding:9px 13px;font-size:10px;font-weight:500;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;justify-content:space-between}
+.sb-sec summary::after{content:'›';font-size:13px;transition:transform .15s}
+.sb-sec[open] summary::after{transform:rotate(90deg)}
+.sb-body{padding:7px 13px 11px;display:flex;flex-direction:column;gap:7px}
+.cr{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.cr label{font-size:11px;color:var(--muted);flex:1}
+.cr input[type=number],.cr input[type=text],.cr select{padding:3px 5px;border:1px solid var(--sbb);border-radius:4px;font-size:11px;font-family:var(--ui);background:var(--paper)}
+.cr input[type=number]{width:52px}
+.cr input[type=text]{width:78px}
+.cr select{width:110px}
+.cr input[type=color]{width:30px;height:22px;padding:1px;border:1px solid var(--sbb);border-radius:4px;cursor:pointer}
+.tr{display:flex;align-items:center;justify-content:space-between}
+.tr label{font-size:11px;color:var(--muted)}
+.tog{width:30px;height:17px;background:#ccc;border-radius:9px;position:relative;cursor:pointer;transition:background .2s;border:none;flex-shrink:0}
+.tog.on{background:var(--accent)}
+.tog::after{content:'';position:absolute;width:13px;height:13px;background:#fff;border-radius:50%;top:2px;left:2px;transition:left .2s}
+.tog.on::after{left:15px}
+.cgl{font-size:10px;font-weight:500;color:var(--ink);margin-top:3px;padding-bottom:3px;border-bottom:1px solid var(--sbb)}
+.seg-list{display:flex;flex-direction:column;gap:3px}
+.seg-chk{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);cursor:pointer}
+.seg-chk input{cursor:pointer}
+.typo-el{margin-bottom:5px}
+.typo-el-lbl{font-size:10px;font-weight:500;color:var(--ink);margin-bottom:2px}
+.typo-ctrls{display:flex;flex-wrap:wrap;gap:3px;align-items:center}
+.typo-ctrls select{width:90px}
+.typo-ctrls input[type=number]{width:40px}
+.pbtn{padding:4px 9px;border:1px solid var(--sbb);border-radius:4px;font-size:11px;cursor:pointer;background:var(--paper);font-family:var(--ui);color:var(--ink)}
+.pbtn:hover{background:#e8e4dc}
+.pbtn.pri{background:var(--accent);color:#fff;border-color:var(--accent)}
+.pbtn-row{display:flex;gap:5px;flex-wrap:wrap}
+
+/* SECTION-SPECIFIC NOTE */
+.sec-note{font-size:10px;color:var(--accent);background:#eeedf8;border-radius:4px;padding:5px 8px;line-height:1.4}
+
+/* PREVIEW */
+#preview-area{flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:28px 20px;gap:20px}
+.book-page{background:var(--paper);box-shadow:0 2px 16px rgba(0,0,0,.12);position:relative;flex-shrink:0;display:flex;overflow:hidden}
+.book-col{flex:1;min-width:0;overflow:hidden}
+.book-col+.book-col{border-left:0.5px solid transparent}
+.book-col.col-rule{border-left-color:#ccc}
+
+/* ENTRIES */
+.entry{break-inside:avoid}
+.entry-heading{font-family:var(--serif);font-size:14px;font-weight:700;color:#000}
+.sub-heading{font-family:var(--serif);font-size:12.5px;font-weight:700;color:#000}
+.subsub-heading{font-family:var(--serif);font-size:11px;font-weight:600;color:#222}
+.alias-entry{font-family:var(--serif);font-size:13px;font-weight:400;font-style:italic;color:#444}
+.alias-see{font-family:var(--serif);font-size:11px;color:#555}
+.seg-group{break-inside:avoid}
+.seg-lbl{font-family:var(--serif);font-size:9px;font-style:italic;letter-spacing:.07em;color:#444;text-transform:uppercase}
+.desc-line{display:flex;align-items:baseline;justify-content:space-between;gap:4px;position:relative}
+.desc-txt{font-family:var(--serif);font-size:10.5px;color:#000;flex:1;min-width:0}
+.desc-right{display:flex;align-items:baseline;gap:4px;flex-shrink:0;white-space:nowrap}
+.rel-tag{font-size:8.5px;color:#888;font-family:var(--serif);font-style:italic}
+.refs{display:flex;align-items:baseline;gap:0;flex-wrap:wrap}
+.ref{font-family:var(--serif);font-size:10.5px;font-style:italic;color:#444}
+.ref.hi{font-weight:700;font-style:normal;text-decoration:underline;color:#000}
+.ref-sep{font-family:var(--serif);font-size:10.5px;color:#666}
+.empty-flag{font-family:var(--serif);font-size:10px;color:var(--danger);font-weight:700}
+.edit-icons{position:absolute;right:-36px;top:0;display:none;gap:2px;align-items:center}
+.editorial-mode .desc-line:hover .edit-icons{display:flex}
+.edit-icon{width:15px;height:15px;background:#e8e4dc;border-radius:3px;border:none;cursor:pointer;font-size:8px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.pg-num{position:absolute;bottom:0;width:100%;text-align:center;font-size:8px;font-family:var(--serif);color:#bbb}
+
+/* PEOPLE section — refs-only layout */
+.people-ref-line{display:flex;align-items:baseline;gap:4px;flex-wrap:wrap;position:relative}
+
+/* EDIT POPOVER */
+#edit-pop{position:fixed;background:var(--paper);border:1px solid var(--sbb);border-radius:6px;padding:10px;width:210px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:200;display:none}
+#edit-pop label{font-size:11px;color:var(--muted);display:block;margin-bottom:2px}
+#edit-pop input,#edit-pop select{width:100%;padding:3px 5px;border:1px solid var(--sbb);border-radius:4px;font-size:11px;font-family:var(--ui);margin-bottom:5px}
+#edit-pop .pa{display:flex;gap:5px;justify-content:flex-end;margin-top:3px}
+#edit-pop button{padding:4px 9px;border:1px solid var(--sbb);border-radius:4px;font-size:11px;cursor:pointer;background:var(--paper);font-family:var(--ui)}
+#edit-pop button.pri{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+@media print{
+  #topbar,#sidebar{display:none!important}
+  #preview-area{padding:0;background:white;display:block}
+  .book-page{box-shadow:none;margin:0;page-break-after:always}
+  .book-page:last-child{page-break-after:avoid}
+  .edit-icons{display:none!important}
+}
+</style>
+</head>
+<body>
+<div id="topbar">
+  <span class="logo">JEM Index</span>
+  <div class="section-tabs" id="sec-tabs"></div>
+  <span id="flag-count">⚑ <span id="flag-num">0</span></span>
+  <div class="mode-toggle">
+    <button id="mode-ed" class="active" onclick="setMode('editorial')">Editorial</button>
+    <button id="mode-pr" onclick="setMode('print')">Print</button>
+  </div>
+  <button id="btn-export" onclick="exportPDF()">Export PDF</button>
+</div>
+<div id="main">
+<div id="sidebar">
+
+<details class="sb-sec" open><summary>Rules — Entries</summary><div class="sb-body">
+  <div class="tr"><label>Show empty entries</label><button class="tog on" id="tog-ee" onclick="toggleRule('showEmptyEntries',this)"></button></div>
+  <div class="cr"><label>Min segment types</label><input type="number" value="1" min="1" max="6" oninput="setRule('minSegmentTypes',parseInt(this.value)||1)"></div>
+  <div id="sec-note-box"></div>
+</div></details>
+
+<details class="sb-sec" open><summary>Rules — Segment Types</summary><div class="sb-body">
+  <div class="cgl">Show / hide</div>
+  <div class="seg-list" id="seg-checklist"></div>
+  <div class="cgl" style="margin-top:5px">Order</div>
+  <div id="seg-order"></div>
+</div></details>
+
+<details class="sb-sec" open><summary>Rules — Description Lines</summary><div class="sb-body">
+  <div class="cr"><label>Top N per segment</label><input type="number" id="r-topn" placeholder="∞" min="1" oninput="setRule('topN',this.value?parseInt(this.value):null)"></div>
+  <div class="cr"><label>Min relevancy</label><select onchange="setRule('minRelevancy',parseInt(this.value))"><option value="1" selected>1 (all)</option><option value="2">2+</option><option value="3">3 only</option></select></div>
+  <div class="tr"><label>Conditional suppress rel 1</label><button class="tog" onclick="toggleRule('condSuppress',this)"></button></div>
+  <div class="cr"><label>Tie-breaker</label><select onchange="setRule('tieBreaker',this.value)"><option value="sheet">Sheet order</option><option value="alpha">Alphabetical</option></select></div>
+  <div class="tr"><label>Suppress duplicate descriptions</label><button class="tog" onclick="toggleRule('suppressDupes',this)"></button></div>
+  <div class="tr"><label>Show relationship tag</label><button class="tog on" onclick="toggleRule('showRelTag',this)"></button></div>
+</div></details>
+
+<details class="sb-sec"><summary>Rules — References</summary><div class="sb-body">
+  <div class="tr"><label>Apply code transform (TM→T etc.)</label><button class="tog on" onclick="toggleRule('applyTransform',this)"></button></div>
+  <div class="cr"><label>Max refs per line</label><input type="number" placeholder="∞" min="1" oninput="setRule('maxRefs',this.value?parseInt(this.value):null)"></div>
+  <div class="cr"><label>Bold threshold</label><select onchange="setRule('boldThreshold',parseInt(this.value))"><option value="3" selected>Relevancy 3</option><option value="2">Relevancy 2+</option></select></div>
+  <div class="cr"><label>Bold style</label><select onchange="setRule('boldStyle',this.value)"><option value="bold-underline">Bold+underline</option><option value="bold">Bold only</option><option value="underline">Underline only</option></select></div>
+  <div class="cr"><label>Empty description</label><select id="empty-beh-sel" onchange="setRule('emptyBehavior',this.value)"><option value="flag">Flag [empty]</option><option value="hide">Hide row</option><option value="block">Block export</option></select></div>
+  <div class="cr"><label>Films unknown chapter</label><select onchange="setRule('filmUnknown',this.value)"><option value="placeholder">Show Ch?</option><option value="hide-num">Hide number</option><option value="hide-row">Hide row</option></select></div>
+</div></details>
+
+<details class="sb-sec"><summary>Design — Page</summary><div class="sb-body">
+  <div class="cr"><label>Trim size</label><select onchange="applyTrimPreset(this.value)"><option value="7x10" selected>7 × 10 in</option><option value="6x9">6 × 9 in</option><option value="8.5x11">8.5 × 11 in</option><option value="custom">Custom</option></select></div>
+  <div class="cr"><label>Width (in)</label><input type="number" id="d-pw" value="7" step=".25" min="4" oninput="setPageDim()"></div>
+  <div class="cr"><label>Height (in)</label><input type="number" id="d-ph" value="10" step=".25" min="4" oninput="setPageDim()"></div>
+  <div class="cr"><label>Margin top</label><input type="number" id="d-mt" value=".75" step=".0625" oninput="setMargins()"></div>
+  <div class="cr"><label>Margin bottom</label><input type="number" id="d-mb" value=".75" step=".0625" oninput="setMargins()"></div>
+  <div class="cr"><label>Margin inside</label><input type="number" id="d-mi" value=".875" step=".0625" oninput="setMargins()"></div>
+  <div class="cr"><label>Margin outside</label><input type="number" id="d-mo" value=".625" step=".0625" oninput="setMargins()"></div>
+  <div class="cr"><label>Columns</label><select onchange="setRule('columns',parseInt(this.value))"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option></select></div>
+  <div class="cr"><label>Column gap (in)</label><input type="number" value=".25" step=".0625" oninput="setRule('columnGap',parseFloat(this.value))"></div>
+  <div class="tr"><label>Column rule</label><button class="tog" onclick="toggleRule('columnRule',this)"></button></div>
+</div></details>
+
+<details class="sb-sec"><summary>Design — Typography</summary><div class="sb-body" id="typo-panel"></div></details>
+
+<details class="sb-sec"><summary>Design — Spacing</summary><div class="sb-body">
+  <div class="cr"><label>Entry top (px)</label><input type="number" value="10" oninput="setSp('entryMT',this.value+'px')"></div>
+  <div class="cr"><label>Entry bottom (px)</label><input type="number" value="2" oninput="setSp('entryMB',this.value+'px')"></div>
+  <div class="cr"><label>Seg type top (px)</label><input type="number" value="5" oninput="setSp('segMT',this.value+'px')"></div>
+  <div class="cr"><label>Seg type bottom (px)</label><input type="number" value="1" oninput="setSp('segMB',this.value+'px')"></div>
+  <div class="cr"><label>Line height</label><input type="number" value="1.4" step=".05" oninput="setSp('lineH',this.value)"></div>
+  <div class="cr"><label>Line gap (px)</label><input type="number" value="1" oninput="setSp('lineGap',this.value+'px')"></div>
+  <div class="cr"><label>Subtag indent (px)</label><input type="number" value="10" oninput="setSp('subInd',this.value+'px')"></div>
+  <div class="cr"><label>Seg indent (px)</label><input type="number" value="8" oninput="setSp('segInd',this.value+'px')"></div>
+  <div class="cr"><label>Desc indent (px)</label><input type="number" value="16" oninput="setSp('descInd',this.value+'px')"></div>
+</div></details>
+
+<details class="sb-sec"><summary>Design — Visual</summary><div class="sb-body">
+  <div class="cr"><label>Entry divider</label><select onchange="setRule('entryDivider',this.value)"><option value="none" selected>None</option><option value="space">Space</option><option value="rule">Thin rule</option><option value="dotted">Dotted</option></select></div>
+  <div class="cr"><label>Ref alignment</label><select onchange="setRule('refAlign',this.value)"><option value="pushed" selected>Pushed right</option><option value="inline">Inline</option></select></div>
+  <div class="cr"><label>Ref separator</label><input type="text" value=" , " oninput="setRule('refSep',this.value)" style="width:55px"></div>
+  <div class="cr"><label>Rel tag style</label><select onchange="setRule('relTagStyle',this.value)"><option value="brackets" selected>[ brackets ]</option><option value="parens">( parens )</option><option value="plain">plain</option></select></div>
+</div></details>
+
+<details class="sb-sec"><summary>Aliases</summary><div class="sb-body">
+  <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:6px">Add alternate names that appear as stub entries pointing to the canonical entry. Shown in the current section only.</div>
+  <div id="alias-list" style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px"></div>
+  <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
+    <input type="text" id="alias-from" placeholder="Alias name" style="flex:1;min-width:80px;padding:3px 6px;border:1px solid var(--sbb);border-radius:4px;font-size:11px;font-family:var(--ui);background:var(--paper)">
+    <span style="font-size:11px;color:var(--muted)">→</span>
+    <input type="text" id="alias-to" placeholder="Points to" style="flex:1;min-width:80px;padding:3px 6px;border:1px solid var(--sbb);border-radius:4px;font-size:11px;font-family:var(--ui);background:var(--paper)">
+    <button class="pbtn pri" onclick="addAlias()" style="white-space:nowrap">Add</button>
+  </div>
+</div></details>
+
+<div class="sb-body">
+  <div class="cr"><label>Preset</label><select id="preset-sel" onchange="loadPreset(this.value)" style="width:130px"></select></div>
+  <div class="pbtn-row">
+    <button class="pbtn pri" onclick="savePreset()">Save as…</button>
+    <button class="pbtn" onclick="exportPreset()">Export JSON</button>
+    <button class="pbtn" onclick="importPreset()">Import</button>
+    <button class="pbtn" onclick="resetAll()">Reset</button>
+  </div>
+</div></details>
+
+</div><!-- /sidebar -->
+<div id="preview-area"></div>
+</div>
+
+<div id="edit-pop">
+  <label>Description</label><input type="text" id="pop-desc">
+  <label>Relevancy</label><select id="pop-rel"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option></select>
+  <label>Relationship</label><input type="text" id="pop-rel-tag" placeholder="e.g. spoken_about">
+  <div class="pa"><button onclick="closePop()">Cancel</button><button class="pri" onclick="saveEdit()">Save</button></div>
+</div>
+
+<script>
+// -- SECTIONS --
+const SECTIONS = [
+  { id:'people',   label:'People',    count:1865 },
+  { id:'topics',   label:'Topics',    count:1006 },
+  { id:'dates',    label:'Dates',     count:62   },
+  { id:'history',  label:'History',   count:42   },
+  { id:'locations',label:'Locations', count:289  },
+  { id:'nigunim',  label:'Nigunim',   count:105  },
+  { id:'orgs',     label:'Orgs & Books', count:264 },
+];
+
+// Per-section default rule overrides
+const SECTION_DEFAULTS = {
+  nigunim: { emptyBehavior:'hide', note:'Nigunim: empty descriptions hidden by default - most entries are refs-only.' },
+  people:  { note:'People: descriptions absent - refs appear directly under segment type.' },
+};
+
+const SEG_TYPES = ['Addresses','Timeless Moments','Conversations','My Encounter','Short Films','Films'];
+
+// -- DEMO DATA --
+const P=(s,e,seg,refs,rel,rel2)=>({s,e,st:null,sst:null,seg,desc:'',refs,rel,rel2});
+const PS=(s,e,seg,refs,rel,rel2,st,sst)=>({s,e,st:st||null,sst:sst||null,seg,desc:'',refs,rel,rel2});
+const D=(s,e,seg,desc,refs,rel,rel2)=>({s,e,st:null,sst:null,seg,desc,refs,rel,rel2});
+const DS=(s,e,seg,desc,refs,rel,rel2,st,sst)=>({s,e,st:st||null,sst:sst||null,seg,desc,refs,rel,rel2});
+const F=(s,e,desc,rel,rel2,ch)=>({s,e,st:null,sst:null,seg:'Films',desc,refs:[],rel,rel2,chapter:ch,location:''});
+const A=(s,e,aliasOf)=>({s,e,isAlias:true,aliasOf});
+const DATA = [
+// -- PEOPLE --
+  P('people','Abehsera, Meir','Timeless Moments',['TM373'],null,2),
+  P('people','Abehsera, Meir','Timeless Moments',['TM781'],null,2),
+  P('people','Abehsera, Meir','Timeless Moments',['TM532'],null,3),
+  P('people','Abehsera, Meir','Short Films',['SF858'],null,3),
+  P('people','Abraham, Simon','Conversations',['C118'],null,3),
+  P('people','Abrahams, Yosef Yeshaya','Short Films',['SF1058'],null,2),
+  F('people','Abrahams, Yosef Yeshaya','',null,2,'Living'),
+  P('people','Abramczyk, Yankel','My Encounter',['ME549'],null,3),
+  P('people','Abramczyk, Yankel','Short Films',['SF966'],null,2),
+  P('people','Abramovitch, Asaf','Short Films',['SF986'],null,2),
+  P('people','Abrams, Chanah','My Encounter',['ME784'],'spoken_about',3),
+  P('people','Abrams, Diane','Timeless Moments',['TM578'],'in_conversation_with',2),
+  P('people','Abrams, Diane','Timeless Moments',['TM734'],null,2),
+  P('people','Abrams, Diane','Conversations',['C107'],null,2),
+  P('people','Abrams, Diane','Conversations',['C61'],null,3),
+  P('people','Abrams, Diane','Conversations',['C759'],'spoken_about',2),
+  P('people','Abrams, Diane','My Encounter',['ME107'],null,2),
+  P('people','Abrams, Diane','My Encounter',['ME759'],null,2),
+  P('people','Abrams, Diane','Short Films',['SF867'],null,2),
+  P('people','Labkowski, Sara','Short Films',['SF1048'],null,2),
+  P('people','Labkowski, Shalom','Short Films',['SF1019'],null,2),
+  P('people','Labkowski, Yisrael','Timeless Moments',['TM343'],null,2),
+  P('people','Labkowski, Zalmen','Timeless Moments',['TM343'],null,2),
+  P('people','Lacalle, Luis Alberto','My Encounter',['ME97'],null,3),
+  P('people','Lacalle, Luis Alberto','Short Films',['SF1069'],null,2),
+  P('people','Laine, Aaron','Conversations',['C429'],'seen_in',2),
+  P('people','Laine, Henya','Short Films',['SF956'],null,2),
+  P('people','Laine, Rivkah','Short Films',['SF967'],'in_conversation_with',3),
+  P('people','Laine, Yosef Yitzchak','Conversations',['C636'],null,2),
+  P('people','Laine, Yosef Yitzchak','Conversations',['C615'],null,3),
+  P('people','Laine, Yosef Yitzchak','Short Films',['SF967'],'in_conversation_with',2),
+  P('people','Lakser, Akiva','Short Films',['SF1019'],null,2),
+  P('people','Lamm, Norman','Short Films',['SF921'],null,2),
+
+
+// -- TOPICS --
+  D('topics','12 Torah Passages','Addresses','relevance to children',['A610'],null,2),
+  D('topics','12 Torah Passages','Addresses','teaching at child\'s level',['A609'],null,3),
+  D('topics','12 Torah Passages','Timeless Moments','at children\'s rally',['TM13','TM763','TM771','TM6'],'seen_in',2),
+  D('topics','12 Torah Passages','Short Films','at children\'s rally',['SF1025','SF970','SF864'],'seen_in',2),
+  D('topics','12 Torah Passages','Short Films','at Lag B\'omer Parade',['SF818','SF1029','SF974'],'seen_in',2),
+  D('topics','12 Torah Passages','Short Films','power to overcome enemy',['SF1019'],null,2),
+  D('topics','12 Torah Passages','Short Films','recited worldwide',['SF849'],'seen_in',2),
+  F('topics','12 Torah Passages','at children\'s rally','seen_in',2,'Tishrei 2'),
+  F('topics','12 Torah Passages','during Blessing of Sun ceremony',null,2,'Joy!'),
+  F('topics','12 Torah Passages','during Chanukah Live event',null,2,'Living'),
+  D('topics','120 years of Rebbe Rashab\'s Birth','Short Films','Practical lessons',['SF918'],null,3),
+  F('topics','120 years of Rebbe Rashab\'s Birth','timeless bond',null,3,'Swit'),
+  D('topics','150 years of Alter Rebbe\'s Passing','Timeless Moments','audio of farbrengen',['TM646'],null,3),
+  D('topics','150 years of Alter Rebbe\'s Passing','Short Films','overview; marking through study and charity',['SF853'],null,3),
+  D('topics','71 New Institutions','Addresses','launch',['A813'],null,3),
+  D('topics','71 New Institutions','My Encounter','Long Beach Mikvah',['ME499'],null,2),
+  D('topics','71 New Institutions','Short Films','for Rebbe\'s 70th birthday',['SF915'],null,3),
+  D('topics','71 New Institutions','Short Films','Overview',['SF813'],null,2),
+  D('topics','770','Timeless Moments','construction',['TM2'],null,2),
+  D('topics','770','Timeless Moments','groundbreaking; cornerstone',['TM178'],'spoken_about',2),
+  D('topics','Love of God','Addresses','trio with Torah and Jews',['A332'],null,2),
+  D('topics','Love of God','Addresses','When serving God',['A858'],null,3),
+  D('topics','Love of God','Addresses','With both inclinations',['A10'],null,2),
+  D('topics','Love of God','Conversations','Fear will follow naturally',['C125'],null,3),
+  D('topics','Love of God','My Encounter','Instill in children',['ME793'],null,2),
+  D('topics','Love of God','Short Films','"Sick with love"',['SF853'],null,2),
+  D('topics','Love The Convert','My Encounter','Reasoning',['ME242'],null,3),
+  D('topics','Loving a Fellow Jew','Addresses','All Jews equally',['A775'],null,2),
+  D('topics','Loving a Fellow Jew','Addresses','Involves all bodily functions',['A661'],null,3),
+  D('topics','Loving a Fellow Jew','Addresses','Results in performing more Mitzvot',['A81'],null,2),
+  D('topics','Loving a Fellow Jew','Addresses','Will lead us out of exile',['A203'],null,2),
+  D('topics','Lulav and Etrog','Addresses','Beauty after used by many',['A1050'],null,2),
+  D('topics','Lulav and Etrog','Addresses','Expresses God\'s greatness',['A632'],null,2),
+  D('topics','Lulav and Etrog','Addresses','Kashrut standard of each species',['A683'],null,3),
+  D('topics','Lulav and Etrog','Addresses','Significance of willow branch',['A1101','A633'],null,3),
+  D('topics','Lulav and Etrog','Addresses','Symbol of unity',['A839'],null,3),
+  D('topics','Lulav and Etrog','Addresses','Unity in diversity',['A371'],null,2),
+  D('topics','Lulav and Etrog','Addresses','waving; representing Torah study',['A788'],null,3),
+  D('topics','Lulav and Etrog','Timeless Moments','Chassidim shake Rebbe\'s',['TM422'],null,3),
+  D('topics','Lulav and Etrog','Timeless Moments','Hallel prayers',['TM370','TM633'],null,2),
+  D('topics','Lulav and Etrog','Timeless Moments','Hoshana Rabah prayers',['TM789'],null,2),
+  D('topics','Lulav and Etrog','Timeless Moments','Hoshana Rabah prayers b',['TM109','TM3','TM264'],null,2),
+  D('topics','Lulav and Etrog','Timeless Moments','Rebbe distributes',['TM788'],null,2),
+  D('topics','Lulav and Etrog','Timeless Moments','Rebbe inspects and distributes',['TM58'],null,3),
+  D('topics','Lulav and Etrog','Conversations','Lulav gifted to Rebbe; Planting Etrogim',['C733'],null,2),
+  D('topics','Lulav and Etrog','Conversations','Rebbe distributes',['C633'],'seen_in',2),
+
+// -- DATES --
+  D('dates','Tishrei','Addresses','Guests welcomed with Chassidic discourse',['A1100'],null,2),
+  D('dates','Tishrei','Addresses','Immersed in holiness',['A60'],null,3),
+  D('dates','Tishrei','Addresses','Influences entire year',['A841'],null,3),
+  D('dates','Tishrei','Addresses','Parting words',['A1051'],null,2),
+  D('dates','Tishrei','Addresses','Time to relax properly',['A423'],null,3),
+  D('dates','Tishrei','Addresses','Transitioning to mundane',['A892'],null,3),
+  D('dates','Tishrei','Addresses','Vs. Nisson; Idea of Baal Teshuvah',['A264'],null,2),
+  D('dates','Tishrei','Timeless Moments','Farewell audience to Tishrei guests',['TM791'],'spoken_about',2),
+  D('dates','Tishrei','Timeless Moments','Farewell farbrengen',['TM579'],'spoken_about',3),
+  D('dates','Tishrei','Timeless Moments','Farewell audience - Tishrei guests',['TM735'],'inferred',2),
+  D('dates','Tishrei','Timeless Moments','Guests depart from 770',['TM634'],null,2),
+  D('dates','Tishrei','Timeless Moments','Rebbe bids farewell to guests',['TM110','TM424'],'spoken_about',3),
+  D('dates','Tishrei','Timeless Moments','Seeing off guests',['TM1102'],'spoken_about',2),
+  D('dates','Tishrei','Timeless Moments','Tishrei with the Rebbe',['TM572'],null,3),
+  D('dates','Tishrei','Conversations','Video of Tishrei in Crown Heights; Take the experience with you',['C790'],'spoken_about',2),
+  D('dates','Tishrei','My Encounter','Transformation after month with Rebbe',['ME1102'],'spoken_about',2),
+  D('dates','Tishrei','My Encounter','Travel to Rebbe for Tishrei',['ME155'],'spoken_about',3),
+  D('dates','Tishrei','My Encounter','Unpack inspiration throughout year',['ME790'],'spoken_about',3),
+  D('dates','Tishrei','Short Films','Chassidim visit the Rebbe',['SF841'],'spoken_about',3),
+  D('dates','Tishrei','Short Films','Eve of Rosh Hashana 1983 with the Rebbe',['SF887'],'seen_in',2),
+  F('dates','Tishrei','1931 with the Rebbe','spoken_about',2,'Early'),
+  F('dates','Tishrei','End of uplifting month','spoken_about',3,'Tishrei 2'),
+  F('dates','Tishrei','Tishrei guests','spoken_about',3,'Joy!'),
+  F('dates','Tishrei','Tishrei with the Rebbe, Elul-conclusion of Yom Kippur','spoken_about',3,'Tishrei 1'),
+  F('dates','Tishrei','Tishrei with the Rebbe, Sukkos.','spoken_about',2,'Tishrei 2'),
+  D('dates','15 Shevat','Addresses','Custom of eating fruits',['A594'],null,2),
+  D('dates','15 Shevat','Addresses','Practical lessons; message to Tzivos Hashem',['A750'],null,3),
+  D('dates','15 Shevat','Addresses','Reason to celebrate',['A961'],null,2),
+  D('dates','15 Shevat','Timeless Moments','Scene from farbrengen - 1985',['TM750'],null,2),
+  D('dates','15 Shevat','Timeless Moments','Scenes from farbrengen - 1988',['TM594'],'spoken_about',2),
+  D('dates','15 Shevat','Conversations','Growth like trees',['C750'],'spoken_about',2),
+  D('dates','15 Shevat','Conversations','Inspire Australia; as related to Torah learning',['C387'],'spoken_about',2),
+  D('dates','15 Shevat','Conversations','Make Farbrengens with children',['C438'],'spoken_about',3),
+  D('dates','15 Shevat','My Encounter','With Rebbe in Marseille',['ME649'],'spoken_about',3),
+  D('dates','15 Shevat','Short Films','Kosher sangria event',['SF1062'],'spoken_about',2),
+  D('dates','22 Shevat','Addresses','Soul\'s accent and resurrection',['A1067'],null,2),
+  D('dates','22 Shevat','Timeless Moments','Fourth Yahrtzeit',['TM751'],'spoken_about',3),
+  D('dates','22 Shevat','Timeless Moments','Rebbetzin\'s funeral',['TM75'],null,3),
+  D('dates','22 Shevat','Conversations','Condolences to Rebbe',['C700'],'spoken_about',2),
+  D('dates','22 Shevat','Conversations','Offering condolences',['C42'],'spoken_about',2),
+  D('dates','22 Shevat','My Encounter','Candle Lighting Campaign fundraiser during shiva',['ME751'],'spoken_about',2),
+  D('dates','22 Shevat','Short Films','Don\'t postpone Hakhel gathering',['SF944'],'spoken_about',2),
+  D('dates','22 Shevat','Short Films','Events surrounding the day',['SF806'],'spoken_about',2),
+  D('dates','22 Shevat','Short Films','Shift of activity to Rebbe\'s home',['SF1067'],'spoken_about',3),
+  F('dates','22 Shevat','Lessons from Rebbetzin','spoken_about',3,'Connection'),
+  F('dates','22 Shevat','Scenes from Rebbetzin\'s funeral','spoken_about',2,'Take'),
+  F('dates','22 Shevat','week preceding','spoken_about',2,'Rebbetzin'),
+
+// -- HISTORY --
+  D('history','Creation of World','Addresses','constant divine renewal',['A276','A680','A735'],null,3),
+  D('history','Creation of World','Addresses','Day "One"',['A932'],null,2),
+  D('history','Creation of World','Addresses','divine perfection',['A372'],null,3),
+  D('history','Creation of World','Addresses','establishes G-d\'s ownership',['A999'],null,2),
+  D('history','Creation of World','Addresses','foundation of faith-based reality',['A259'],null,2),
+  D('history','Creation of World','Addresses','infiniteness in',['A64'],null,3),
+  D('history','Creation of World','Addresses','Jews as G-d\'s partners in',['A731'],null,2),
+  D('history','Creation of World','Addresses','opens with creation of light',['A1102'],null,1),
+  D('history','Creation of World','Timeless Moments','Began from foundation stone',['TM178'],'spoken_about',2),
+  D('history','Creation of World','Conversations','Chanukah connection',['C13'],'spoken_about',2),
+  D('history','Creation of World','My Encounter','In six days',['ME710'],'spoken_about',3),
+  D('history','Creation of World','My Encounter','Torah blueprint of world',['ME160'],'spoken_about',2),
+  D('history','Creation of World','Short Films','Basis for Israel ownership',['SF999'],'spoken_about',3),
+  D('history','Creation of World','Short Films','in 6 days; Teach Torah view',['SF946'],'spoken_about',2),
+  D('history','Creation of World','Short Films','Torah blueprint of world',['SF922'],'spoken_about',2),
+  F('history','Creation of World','Science synced with Torah\'s view','spoken_about',1,'Early Years'),
+  F('history','Creation of World','Torah view defended before scientists','spoken_about',2,'Early Years'),
+  D('history','Noah\'s Flood','Addresses','ark was built slowly',['A745'],null,1),
+  D('history','Noah\'s Flood','Addresses','Noah commanded to leave ark',['A60'],null,3),
+  D('history','Binding of Isaac','Addresses','Abraham tested by deep river',['A927'],null,3),
+  D('history','Egyptian Exile','Addresses','comparison to current exile',['A481'],null,2),
+  D('history','Egyptian Exile','Addresses','Descent for sake of ascent',['A720'],null,2),
+  D('history','Egyptian Exile','Addresses','Egyptians received punishment',['A318'],null,3),
+  D('history','Egyptian Exile','Addresses','G-d himself redeems',['A542'],null,2),
+  D('history','Egyptian Exile','Addresses','Jews retained holy language',['A547'],null,2),
+  D('history','Egyptian Exile','Addresses','Jews too comfortable in exile',['A763'],null,3),
+  D('history','Rebbe-Rebbetzin Wedding','My Encounter','Parents celebrated at home',['ME585'],'spoken_about',3),
+  F('history','Rebbe-Rebbetzin Wedding','Background and overview','spoken_about',3,'Early'),
+  D('history','Holocaust','Addresses','Ethics based in intellect',['A111','A34','A529'],null,2),
+  D('history','Holocaust','Addresses','Outcome of logical ethics',['A775'],null,2),
+  D('history','Holocaust','Conversations','Designate day for Yahrzeit',['C111'],'spoken_about',2),
+  D('history','Holocaust','My Encounter','Compensation',['ME255'],'spoken_about',3),
+  D('history','Holocaust','My Encounter','Dealing with difficult aftermath',['ME646'],'spoken_about',3),
+  D('history','Holocaust','My Encounter','Elie Wiesel and Rebbe',['ME631'],'spoken_about',3),
+  D('history','Holocaust','My Encounter','Music en route to gas chambers',['ME674'],'spoken_about',3),
+  F('history','Holocaust','kindness without Torah foundation','spoken_about',3,'Early Years'),
+  D('history','World War II','My Encounter','Blessing to fight Hitler',['ME229'],'spoken_about',3),
+  D('history','World War II','My Encounter','Surviving',['ME413'],'spoken_about',2),
+  D('history','World War II','Short Films','Escape from France',['SF980'],'spoken_about',3),
+  D('history','World War II','Short Films','Rebbe arrives in America',['SF874'],'spoken_about',3),
+  D('history','Cold War','Short Films','Rebbe\'s response',['SF913'],'spoken_about',3),
+  {s:'history',e:'Kfar Chabad Terrorist Attack',st:null,sst:null,seg:'Films',desc:'',refs:[],rel:'spoken_about',rel2:3,chapter:'Living',location:''},
+  D('history','Korean War','Short Films','Jewish soldier\'s mission',['SF1035'],'spoken_about',2),
+  D('history','Vietnam War','My Encounter','Call for revolution',['ME572'],'spoken_about',2),
+  D('history','Six Day War','Addresses','Divine miracle openly seen',['A188','A390'],null,3),
+  D('history','Six Day War','Addresses','Obligation to settle the land',['A614'],null,2),
+  D('history','Six Day War','My Encounter','Generals consult with Rebbe',['ME801'],'spoken_about',3),
+  D('history','Six Day War','Short Films','Rebbe predicts victory',['SF442'],'spoken_about',3),
+
+
+// -- LOCATIONS --
+  D('locations','Algeria','Conversations','Learning in Chabad institutions',['C70'],'spoken_about',2),
+  D('locations','Antarctica','Short Films','Tanya printing',['SF883'],'spoken_about',2),
+  D('locations','Argentina','My Encounter','Ferry crossing to Brazil',['ME564'],'spoken_about',2),
+  DS('locations','Argentina','Conversations','Blessing',['C702'],'spoken_about',2,'Buenos Aires',null),
+  DS('locations','Argentina','My Encounter','Attack on Israeli Embassy and AMIA',['ME590'],'spoken_about',3,'Buenos Aires',null),
+  DS('locations','Argentina','Conversations','Blessing for Shliach',['C321'],'spoken_about',2,'Buenos Aires','Rosario'),
+  D('locations','Australia','Timeless Moments','Blessing to Shluchos',['TM701'],'spoken_about',2),
+  D('locations','Australia','Timeless Moments','Dollar for',['TM545'],'spoken_about',2),
+  D('locations','Australia','Conversations','Blessing for trip to',['C796'],'spoken_about',2),
+  D('locations','Australia','Conversations','Dollar for',['C327','C565'],'spoken_about',2),
+  D('locations','Australia','Conversations','Influx of Russian Jews',['C194'],'spoken_about',3),
+  D('locations','Australia','Conversations','Personal responsibility',['C115'],'spoken_about',2),
+  D('locations','Australia','Conversations','Recognition of Rebbe\'s work',['C184'],'spoken_about',3),
+  D('locations','Australia','Conversations','Should be filled with spiritual Seven Species',['C387'],'spoken_about',2),
+  D('locations','Australia','My Encounter','Judaism brought to',['ME129'],'spoken_about',3),
+  D('locations','Australia','My Encounter','Outreach style',['ME712'],'spoken_about',2),
+  D('locations','Australia','My Encounter','Stay local, spread Torah',['ME154'],'spoken_about',2),
+  D('locations','Australia','My Encounter','Student instructed to return to',['ME155'],'spoken_about',2),
+  D('locations','Australia','Short Films','Chabad\'s educational institutions',['SF1027'],'spoken_about',2),
+  D('locations','Beirut','Short Films','IDF in',['SF998'],'spoken_about',2),
+  D('locations','Beirut','Short Films','Printing Tanya in',['SF848'],'spoken_about',2),
+  F('locations','Beirut','Control from outside','spoken_about',3,'Faithful'),
+  {s:'locations',e:'Lithuania',st:'Rakshik',sst:null,seg:'Conversations',desc:'Memories of Previous Rebbe',refs:['C543'],rel:'spoken_about',rel2:2},
+  D('locations','Madagascar','My Encounter','Search for Jews',['ME376'],'spoken_about',3),
+  D('locations','Madagascar','Short Films','Search for Jews',['SF939'],'spoken_about',2),
+  D('locations','Mexico','My Encounter','accept local Rabbinic position',['ME644'],'spoken_about',2),
+  D('locations','Monterrey','Conversations','Spread Torah in',['C110'],'spoken_about',2),
+  D('locations','Morocco','Addresses','Earthquake in Agadir',['A1114'],null,2),
+  D('locations','Morocco','Timeless Moments','Moroccan children sing in 770',['TM498'],null,2),
+  D('locations','Morocco','Conversations','activist well known in',['C200'],'spoken_about',2),
+  D('locations','Morocco','Conversations','Affect of Jewish education',['C423'],'spoken_about',2),
+  D('locations','Morocco','Conversations','Blessing',['C668'],'spoken_about',2),
+  D('locations','Morocco','Conversations','Gift from',['C64'],'spoken_about',2),
+  D('locations','Morocco','Conversations','place of origin',['C70'],'spoken_about',2),
+  D('locations','Morocco','My Encounter','Early Chabad establishment',['ME701'],'spoken_about',3),
+  D('locations','Morocco','My Encounter','Interested in Shluchim\'s welfare',['ME638'],'spoken_about',2),
+  D('locations','Morocco','Short Films','Challenge of local Shluchim',['SF1055'],'spoken_about',2),
+
+// -- NIGUNIM --
+  P('nigunim','Aber a Maala','Timeless Moments',['TM60'],null,2),
+  P('nigunim','Ach Du','Timeless Moments',['TM476'],null,2),
+  P('nigunim','Ach Du','Timeless Moments',['TM773'],null,2),
+  {s:'nigunim',e:'Ad Mosai',st:null,sst:null,seg:'Addresses',desc:'',refs:['A935'],rel:'spoken_about',rel2:2},
+  D('nigunim','Ad Mosai','Addresses','A "new" cry and outpour',['A248'],'spoken_about',2),
+  D('nigunim','Ad Mosai','Addresses','Demanding redemption',['A746'],'spoken_about',3),
+  P('nigunim','Ad Mosai','Timeless Moments',['TM649'],null,2),
+  P('nigunim','Ad Mosai','Timeless Moments',['TM750'],null,3),
+  D('nigunim','Ad Mosai','Conversations','It\'s enough already',['C210'],'spoken_about',2),
+  F('nigunim','Ad Mosai','',null,2,'Take'),
+  F('nigunim','Ad Mosai','',null,2,'Tishrei 1'),
+  P('nigunim','Aimosai','Timeless Moments',['TM16'],null,2),
+  P('nigunim','Aimosai','Timeless Moments',['TM44'],null,2),
+  P('nigunim','Aimosai','Timeless Moments',['TM72'],null,3),
+  P('nigunim','Aimosai','Timeless Moments',['TM792'],null,2),
+  P('nigunim','Aimosai','Timeless Moments',['TM784'],null,2),
+  P('nigunim','Aimosai','Short Films',['SF855'],null,2),
+  P('nigunim','Aimosai','Short Films',['SF1066'],null,2),
+  P('nigunim','Al Achas','Timeless Moments',['TM240'],null,3),
+  P('nigunim','Al Achas','Timeless Moments',['TM83'],null,2),
+  P('nigunim','Al Achas','Timeless Moments',['TM30'],null,2),
+  P('nigunim','Al Achas','Timeless Moments',['TM447'],null,3),
+  P('nigunim','Al Hasela','Timeless Moments',['TM180'],null,2),
+  D('nigunim','Nye Zhuritzi','Addresses','Drinking en route to inn',['A534'],'spoken_about',2),
+  P('nigunim','Nye Zhuritzi','Timeless Moments',['TM216'],null,3),
+  P('nigunim','Nye Zhuritzi','Timeless Moments',['TM223'],null,2),
+  P('nigunim','Nye Zhuritzi','Timeless Moments',['TM3'],null,2),
+  P('nigunim','Nye Zhuritzi','Timeless Moments',['TM43'],null,2),
+  P('nigunim','Nye Zhuritzi','Timeless Moments',['TM80'],null,3),
+  P('nigunim','Nye Zhuritzi','Timeless Moments',['TM632'],null,3),
+  P('nigunim','Nye Zhuritzi','Short Films',['SF898'],null,2),
+  P('nigunim','Nye Zhuritzi','Short Films',['SF1099'],null,2),
+  P('nigunim','Nye Zhuritzi','Short Films',['SF1087'],null,2),
+  P('nigunim','Nye Zhuritzi','Short Films',['SF1004'],null,2),
+  F('nigunim','Nye Zhuritzi','',null,3,'Truly'),
+  F('nigunim','Nye Zhuritzi','',null,2,'Alter'),
+  F('nigunim','Nye Zhuritzi','',null,2,'Film'),
+  P('nigunim','Nyet Nyet Nikavo','Timeless Moments',['TM125'],null,3),
+  P('nigunim','Nyet Nyet Nikavo','Timeless Moments',['TM95'],null,2),
+  P('nigunim','Nyet Nyet Nikavo','Timeless Moments',['TM48'],null,2),
+  P('nigunim','Nyet Nyet Nikavo','Timeless Moments',['TM74'],null,2),
+  P('nigunim','Nyet Nyet Nikavo','Timeless Moments',['TM459'],null,3),
+  P('nigunim','Nyet Nyet Nikavo','Timeless Moments',['TM514'],null,2),
+  P('nigunim','Nyet Nyet Nikavo','Timeless Moments',['TM608'],null,2),
+  P('nigunim','Nyet Nyet Nikavo','Timeless Moments',['TM731'],null,2),
+  P('nigunim','Nyet Nyet Nikavo','Timeless Moments',['TM748'],null,3),
+  P('nigunim','Nyet Nyet Nikavo','Short Films',['SF920'],null,2),
+  P('nigunim','Nyet Nyet Nikavo','Short Films',['SF889'],null,2),
+  P('nigunim','Nyet Nyet Nikavo','Short Films',['SF840'],null,3),
+  P('nigunim','Nyet Nyet Nikavo','Short Films',['SF992'],null,2),
+  P('nigunim','Nyet Nyet Nikavo','Short Films',['SF971'],null,2),
+  P('nigunim','Nyet Nyet Nikavo','Short Films',['SF970'],null,2),
+  P('nigunim','Nyet Nyet Nikavo','Short Films',['SF965'],null,2),
+  F('nigunim','Nyet Nyet Nikavo','',null,3,'Truly'),
+
+// -- ORGS & BOOKS --
+  D('orgs','18th Street','My Encounter','Inception; Name selection',['ME570'],'spoken_about',2),
+  D('orgs','A Mother in Israel','Conversations','Mention of book purchase',['C787'],'spoken_about',2),
+  D('orgs','A Woman of Valour','Short Films','discussed at audience',['SF1072'],'spoken_about',2),
+  D('orgs','Agudas HaRabanim','Conversations','Dollar for entire organization',['C576'],'spoken_about',2),
+  D('orgs','Agudas HaRabanim','Short Films','Fast day declaration',['SF994'],'spoken_about',2),
+  F('orgs','Agudas HaRabanim','Fast day declaration','spoken_about',2,'Faithful'),
+  D('orgs','Aleph Institute','Conversations','Guidance',['C368'],'spoken_about',2),
+  D('orgs','Aleph Institute','Conversations','Meaning of name',['C624'],'spoken_about',2),
+  D('orgs','Aleph Institute','My Encounter','Jerry Levine joins team',['ME368'],'spoken_about',2),
+  D('orgs','Aleph Institute','Short Films','Inception and mission',['SF1012'],'spoken_about',3),
+  F('orgs','Aleph Institute','Prisoners spend Shabbat with Rebbe','spoken_about',2,'Sensitivity'),
+  D('orgs','Algemeiner Journal','Conversations','Discussion with writer',['C110','C355'],'spoken_about',2),
+  D('orgs','Algemeiner Journal','My Encounter','Anti-Zionist writer',['ME574'],'spoken_about',2),
+  D('orgs','Algemeiner Journal','My Encounter','Article criticized',['ME715'],'spoken_about',2),
+  D('orgs','Algemeiner Journal','My Encounter','Controversial column; Posthumous articles of hope',['ME575'],'spoken_about',2),
+  D('orgs','Algemeiner Journal','Short Films','Article about Rebbe whistling',['SF858'],'spoken_about',2),
+  D('orgs','Likkutei | Chidushei Levi Yitzchak','Conversations','Manuscripts retrieved',['C120'],'spoken_about',3),
+  D('orgs','Likkutei | Chidushei Levi Yitzchak','My Encounter','Printing',['ME483'],'spoken_about',2),
+  D('orgs','Likkutei | Chidushei Levi Yitzchak','Short Films','Available thanks to Rebbetzin Chana',['SF993'],'spoken_about',2),
+  D('orgs','Likkutei | Chidushei Levi Yitzchak','Short Films','Writing and publishing',['SF831'],'spoken_about',3),
+  D('orgs','Likkutei Dibburim','Short Films','Happy Mussar',['SF1044'],'spoken_about',2),
+  D('orgs','Likkutei Sichot','Conversations','New volumes presented to Rebbe',['C45'],'spoken_about',3),
+  D('orgs','Likkutei Sichot','Conversations','Purpose of footnotes',['C514'],'spoken_about',2),
+  D('orgs','Likkutei Sichot','Conversations','should learn',['C203'],'spoken_about',2),
+  D('orgs','Likkutei Sichot','Short Films','Concludes on positive note',['SF1008'],'spoken_about',2),
+  D('orgs','Likkutei Sichot','Short Films','Overview of publishing',['SF906'],'spoken_about',3),
+  D('orgs','Likkutei Torah','Short Films','Printed in memory of Rebbetzin Chana',['SF1061'],'spoken_about',2),
+  D('orgs','Likud Party','Conversations','Blessing; Consolidate Jews',['C447'],'spoken_about',2),
+  D('orgs','Likud Party','Conversations','consolidation around Torah observance',['C389'],'spoken_about',2),
+  D('orgs','Likud Party','Conversations','Don\'t pass responsibility to',['C37'],'spoken_about',2),
+  D('orgs','Likud Party','Conversations','Israel Loyalist Faction; Consolidate Jews',['C336'],'spoken_about',3),
+  D('orgs','London Board of Jewish Education','My Encounter','Hebrew reading initiative',['ME256'],'spoken_about',2),
+  D('orgs','London Board of Jewish Education','Short Films','Aleph-Beit study method',['SF928'],'spoken_about',2),
+  D('orgs','London Jewish Chronicle','Short Films','guidance and encouragement',['SF921'],'spoken_about',2),
+];
+
+// -- STATE --
+let activeSection = 'people';
+let state = {
+  mode:'editorial',
+  rules:{
+    showEmptyEntries:true, minSegmentTypes:1,
+    hiddenSegTypes:[], segTypeOrder:[...SEG_TYPES],
+    topN:null, minRelevancy:1, condSuppress:false,
+    tieBreaker:'sheet', suppressDupes:false, showRelTag:true,
+    applyTransform:true, maxRefs:null, boldThreshold:3, boldStyle:'bold-underline',
+    emptyBehavior:'flag', filmUnknown:'placeholder',
+    refSep:' , ', refAlign:'pushed', relTagStyle:'brackets', entryDivider:'none',
+    columns:2, columnGap:0.25, columnRule:false,
+  },
+  design:{
+    pageW:7,pageH:10,mgT:.75,mgB:.75,mgI:.875,mgO:.625,
+    entryMT:'10px',entryMB:'2px',segMT:'5px',segMB:'1px',
+    lineH:'1.4',lineGap:'1px',subInd:'10px',segInd:'8px',descInd:'16px',
+    typo:{
+      entry:      {fam:"'Playfair Display',Georgia,serif",sz:14,wt:700,st:'normal',cl:'#000000',ls:'0em'},
+      segtype:    {fam:"'Playfair Display',Georgia,serif",sz:9, wt:400,st:'italic',cl:'#444444',ls:'0.07em'},
+      description:{fam:"'Playfair Display',Georgia,serif",sz:10.5,wt:400,st:'normal',cl:'#000000',ls:'0em'},
+      refLow:     {fam:"'Playfair Display',Georgia,serif",sz:10.5,wt:400,st:'italic',cl:'#444444',ls:'0em'},
+      refHigh:    {fam:"'Playfair Display',Georgia,serif",sz:10.5,wt:700,st:'normal',cl:'#000000',ls:'0em'},
+      relTag:     {fam:"'Playfair Display',Georgia,serif",sz:8.5,wt:400,st:'italic',cl:'#888888',ls:'0em'},
+      emptyFlag:  {fam:"'Playfair Display',Georgia,serif",sz:10,wt:700,st:'normal',cl:'#b91c1c',ls:'0em'},
+    }
+  },
+  edits:{},presets:[],aliases:[],
+};
+
+// -- HELPERS --
+function xRef(code){
+  if(!state.rules.applyTransform)return code;
+  return code.replace(/^TM(\d+)$/,'T$1').replace(/^ME(\d+)$/,'M$1').replace(/^SF(\d+)$/,'S$1');
+}
+function fmtRel(rel){
+  if(!rel)return'';
+  const s=state.rules.relTagStyle;
+  return s==='parens'?`(${rel})`:s==='plain'?rel:`[${rel}]`;
+}
+function ts(t){return`font-family:${t.fam};font-size:${t.sz}px;font-weight:${t.wt};font-style:${t.st};color:${t.cl};letter-spacing:${t.ls}`;}
+
+// -- RULES ENGINE --
+function applyRules(section){
+  const r=state.rules,d=state.design;
+  const rows=DATA.filter(x=>x.s===section);
+  
+  // Aliases come from state, not DATA — filtered to current section
+  const aliases=state.aliases.filter(a=>a.s===section);
+
+  const normal=rows;
+  const entryMap=new Map();
+  for(const row of normal){
+    if(!entryMap.has(row.e))entryMap.set(row.e,{subtags:new Map(),directSegs:new Map(),_order:entryMap.size});
+    const eObj=entryMap.get(row.e);
+    
+    if(row.st){
+      if(!eObj.subtags.has(row.st))eObj.subtags.set(row.st,{subsubs:new Map(),directSegs:new Map()});
+      const stObj=eObj.subtags.get(row.st);
+      if(row.sst){
+        if(!stObj.subsubs.has(row.sst))stObj.subsubs.set(row.sst,new Map());
+        const sstMap=stObj.subsubs.get(row.sst);
+        if(!sstMap.has(row.seg))sstMap.set(row.seg,[]);
+        sstMap.get(row.seg).push(row);
+      } else {
+        if(!stObj.directSegs.has(row.seg))stObj.directSegs.set(row.seg,[]);
+        stObj.directSegs.get(row.seg).push(row);
+      }
+    } else {
+      if(!eObj.directSegs.has(row.seg))eObj.directSegs.set(row.seg,[]);
+      eObj.directSegs.get(row.seg).push(row);
+    }
+  }
+
+  // Filter seg lines
+  function filterLines(segMap){
+    const result=[];
+    const orderedTypes=r.segTypeOrder.filter(t=>!r.hiddenSegTypes.includes(t));
+    const seenDescs=new Set();
+    for(const segType of orderedTypes){
+      if(!segMap.has(segType))continue;
+      let lines=segMap.get(segType);
+      // apply edits
+      lines=lines.map(l=>{
+        const k=`${l.s}|${l.e}|${l.seg}|${l.desc}|${(l.refs||[]).join(',')}`;
+        const ed=state.edits[k];
+        return ed?{...l,...ed,_editKey:k}:{...l,_editKey:k};
+      });
+      // relevancy filter
+      lines=lines.filter(l=>l.rel2>=r.minRelevancy);
+      if(r.condSuppress&&lines.length>=3)lines=lines.filter(l=>l.rel2>1);
+      // sort
+      if(r.tieBreaker==='alpha')lines.sort((a,b)=>b.rel2-a.rel2||(a.desc||'').localeCompare(b.desc||''));
+      else lines.sort((a,b)=>b.rel2-a.rel2);
+      // topN
+      if(r.topN)lines=lines.slice(0,r.topN);
+      // suppress dupes
+      if(r.suppressDupes){
+        lines=lines.filter(l=>{
+          if(!l.desc)return true;
+          if(seenDescs.has(l.desc))return false;
+          seenDescs.add(l.desc);return true;
+        });
+      }
+      if(lines.length)result.push({segType,lines});
+    }
+    return result;
+  }
+
+  const entries=[];
+  for(const [entryName,eObj] of entryMap){
+    const directSegs=filterLines(eObj.directSegs);
+    const subtags=[];
+    for(const [stName,stObj] of eObj.subtags){
+      const stSegs=filterLines(stObj.directSegs);
+      const subsubs=[];
+      for(const [sstName,sstMap] of stObj.subsubs){
+        const sstSegs=filterLines(sstMap);
+        if(sstSegs.length)subsubs.push({name:sstName,segs:sstSegs});
+      }
+      if(stSegs.length||subsubs.length)subtags.push({name:stName,segs:stSegs,subsubs});
+    }
+    const hasContent=directSegs.length||subtags.length;
+    if(!hasContent&&!r.showEmptyEntries)continue;
+    const totalSegs=directSegs.length+subtags.reduce((a,st)=>a+st.segs.length+st.subsubs.reduce((b,ss)=>b+ss.segs.length,0),0);
+    if(totalSegs<r.minSegmentTypes&&totalSegs>0)continue;
+    entries.push({name:entryName,directSegs,subtags});
+  }
+
+  // add aliases as stubs
+  for(const a of aliases){
+    entries.push({name:a.e,isAlias:true,aliasOf:a.aliasOf});
+  }
+  // sort aliases into position (alphabetically mixed with entries)
+  entries.sort((a,b)=>a.name.localeCompare(b.name));
+  return entries;
+}
+
+function countFlags(entries){
+  let n=0;
+  function scanSegs(segs){
+    for(const sg of segs)for(const l of sg.lines){
+      if(!l.desc&&state.rules.emptyBehavior==='flag')n++;
+    }
+  }
+  for(const e of entries){
+    if(e.isAlias)continue;
+    scanSegs(e.directSegs||[]);
+    for(const st of(e.subtags||[])){ scanSegs(st.segs); for(const ss of st.subsubs)scanSegs(ss.segs); }
+  }
+  return n;
+}
+
+// -- REF RENDERING --
+function refHtml(line,isPeople){
+  const r=state.rules,d=state.design;
+  const isHigh=line.rel2>=r.boldThreshold;
+  const t=isHigh?d.typo.refHigh:d.typo.refLow;
+  const fw=(r.boldStyle==='bold'||r.boldStyle==='bold-underline')?'700':t.wt;
+  const td=(r.boldStyle==='underline'||r.boldStyle==='bold-underline')?'underline':'none';
+  const styleHigh=`font-family:${t.fam};font-size:${t.sz}px;font-weight:${fw};font-style:${t.st};color:${t.cl};text-decoration:${td};`;
+  const styleLow=ts(d.typo.refLow);
+
+  if(line.seg==='Films'){
+    if(r.filmUnknown==='hide-row'&&!line.location)return null;
+    const name=line.chapter||'';
+    const display=r.filmUnknown==='hide-num'?name:(name?`${name} · Ch?`:'Ch?');
+    return `<span class="ref${isHigh?' hi':''}" style="${isHigh?styleHigh:styleLow}">${display}</span>`;
+  }
+  let refs=(line.refs||[]).map(c=>xRef(c));
+  if(r.maxRefs)refs=refs.slice(0,r.maxRefs);
+  if(!refs.length)return'';
+  const sep=`<span class="ref-sep">${r.refSep}</span>`;
+  return refs.map(c=>`<span class="ref${isHigh?' hi':''}" style="${isHigh?styleHigh:styleLow}">${c}</span>`).join(sep);
+}
+
+// -- ENTRY HTML BUILDER --
+function buildEntry(e,r,d,isEd,isPeople){
+  const tE=d.typo.entry,tS=d.typo.segtype,tD=d.typo.description,tR=d.typo.relTag,tF=d.typo.emptyFlag;
+
+  if(e.isAlias){
+    return`<div class="entry" style="margin-top:${d.entryMT};margin-bottom:${d.entryMB}">
+      <div class="alias-entry" style="${ts(tE)};font-style:italic;font-weight:400">${e.name}</div>
+      <div class="alias-see" style="padding-left:${d.segInd};font-family:${tS.fam};font-size:${tS.sz}px;color:#666">See: <em>${e.aliasOf}</em></div>
+    </div>`;
+  }
+
+  function segsHtml(segs){
+    let h='';
+    for(const sg of segs){
+      h+=`<div class="seg-group" style="margin-top:${d.segMT};margin-bottom:${d.segMB};padding-left:${d.segInd}">`;
+      h+=`<div class="seg-lbl" style="${ts(tS)}">${sg.segType}</div>`;
+      for(const line of sg.lines){
+        const isEmpty=!line.desc;
+        const eb=state.rules.emptyBehavior;
+        const hasRefs=(line.refs&&line.refs.length>0)||(line.seg==='Films'&&line.chapter);
+        // Only suppress rows that have no description AND no refs — truly blank
+        // Rows with refs but no desc (People, Nigunim) always render
+        if(isEmpty&&!hasRefs&&(eb==='hide'||(!isEd&&eb==='flag')))continue;
+        if(line.seg==='Films'&&!line.location&&r.filmUnknown==='hide-row')continue;
+        const rh=refHtml(line,isPeople);
+        if(rh===null)continue;
+
+        if(isPeople){
+          // People: just rel tag + ref, no description
+          const relH=r.showRelTag&&line.rel?`<span class="rel-tag" style="${ts(tR)}">${fmtRel(line.rel)}</span>`:'';
+          h+=`<div class="people-ref-line" style="line-height:${d.lineH};margin-bottom:${d.lineGap};padding-left:${d.descInd}" data-edit-key="${line._editKey||''}">
+            ${relH}<span class="refs">${rh}</span>
+            ${isEd?`<span class="edit-icons"><button class="edit-icon" onclick="openEdit(event,'${line._editKey||''}')">✏</button></span>`:''}
+          </div>`;
+        } else {
+          const descH=isEmpty&&isEd
+            ?`<span class="empty-flag" style="${ts(tF)}">[empty]</span>`
+            :`<span class="desc-txt" style="${ts(tD)}">${line.desc}</span>`;
+          const relH=r.showRelTag&&line.rel?`<span class="rel-tag" style="${ts(tR)}">${fmtRel(line.rel)}</span>`:'';
+          h+=`<div class="desc-line" style="line-height:${d.lineH};margin-bottom:${d.lineGap};padding-left:${d.descInd}" data-edit-key="${line._editKey||''}">
+            ${descH}
+            <span class="desc-right">${relH}<span class="refs">${rh}</span></span>
+            ${isEd?`<span class="edit-icons"><button class="edit-icon" onclick="openEdit(event,'${line._editKey||''}')">✏</button></span>`:''}
+          </div>`;
+        }
+      }
+      h+=`</div>`;
+    }
+    return h;
+  }
+
+  let h=`<div class="entry" style="margin-top:${d.entryMT};margin-bottom:${d.entryMB}">`;
+  h+=`<div class="entry-heading" style="${ts(tE)}">${e.name}</div>`;
+  h+=segsHtml(e.directSegs||[]);
+  for(const st of(e.subtags||[])){
+    h+=`<div style="padding-left:${d.subInd}">`;
+    h+=`<div class="sub-heading" style="${ts(tE)};font-size:${tE.sz-1.5}px">${st.name}</div>`;
+    h+=segsHtml(st.segs);
+    for(const ss of st.subsubs){
+      h+=`<div style="padding-left:${d.subInd}">`;
+      h+=`<div class="subsub-heading" style="${ts(tE)};font-size:${tE.sz-2.5}px;font-weight:600">${ss.name}</div>`;
+      h+=segsHtml(ss.segs);
+      h+=`</div>`;
+    }
+    h+=`</div>`;
+  }
+  h+=`</div>`;
+  return h;
+}
+
+// -- RENDER --
+let _renderPending=false;
+function render(){
+  // Debounce + defer past font loading
+  if(_renderPending)return;
+  _renderPending=true;
+  requestAnimationFrame(()=>{_renderPending=false;_doRender();});
+}
+
+function _doRender(){
+  const r=state.rules,d=state.design;
+  const isEd=state.mode==='editorial';
+  const isPeople=activeSection==='people';
+  const entries=applyRules(activeSection);
+
+  const flags=countFlags(entries);
+  document.getElementById('flag-num').textContent=flags;
+  document.getElementById('flag-count').style.display=isEd&&flags>0?'block':'none';
+
+  const PX=96; // CSS px per inch at screen resolution
+  const pxW=d.pageW*PX, pxH=d.pageH*PX;
+  const pxMT=d.mgT*PX, pxMB=d.mgB*PX, pxMI=d.mgI*PX, pxMO=d.mgO*PX;
+  const cH=pxH-pxMT-pxMB;
+  const colGap=r.columnGap*PX;
+  // Exact column content width matching what the flex layout produces
+  const totalColSpace=pxW-pxMI-pxMO-(r.columns-1)*colGap;
+  const colW=Math.floor(totalColSpace/r.columns);
+
+  // Measurer: fixed position, exact column width, same font environment
+  let msr=document.getElementById('_msr');
+  if(!msr){
+    msr=document.createElement('div');
+    msr.id='_msr';
+    msr.style.cssText='position:fixed;visibility:hidden;pointer-events:none;top:-9999px;left:0;z-index:-1;overflow:hidden;';
+    document.body.appendChild(msr);
+  }
+  msr.style.width=colW+'px';
+
+  // Build all HTML strings
+  const htmls=entries.map(e=>buildEntry(e,r,d,isEd,isPeople));
+
+  // Measure heights — strip the entry's top margin for the first item in a
+  // column since CSS margin-top on the first child doesn't add to scrollHeight
+  const entryMTpx=parseFloat(d.entryMT)||0;
+  const heights=htmls.map(h=>{
+    msr.innerHTML=h;
+    return msr.scrollHeight; // scrollHeight is more reliable than offsetHeight
+  });
+
+  // Pack entries into columns greedily.
+  // First entry in each column: subtract its top margin (it collapses against the column top)
+  const pages=[];
+  let pg=[], curCols=[], curH=0, firstInCol=true;
+
+  for(let i=0;i<entries.length;i++){
+    const effectiveH = firstInCol ? heights[i]-entryMTpx : heights[i];
+    if(!firstInCol && curH+effectiveH>cH && curCols.length>0){
+      // Column full — close it
+      pg.push(curCols);
+      curCols=[];curH=0;firstInCol=true;
+      if(pg.length>=r.columns){pages.push(pg);pg=[];}
+      // Re-evaluate effective height as first in new column
+      const eh2=heights[i]-entryMTpx;
+      curCols.push(i);curH+=eh2;firstInCol=false;
+    } else {
+      curCols.push(i);
+      curH+=(firstInCol?heights[i]-entryMTpx:heights[i]);
+      firstInCol=false;
+    }
+  }
+  if(curCols.length)pg.push(curCols);
+  if(pg.length)pages.push(pg);
+
+  // Render pages
+  const preview=document.getElementById('preview-area');
+  preview.querySelectorAll('.book-page').forEach(p=>p.remove());
+
+  pages.forEach((pgCols,pi)=>{
+    const page=document.createElement('div');
+    page.className='book-page'+(isEd?' editorial-mode':'');
+    page.style.cssText=`width:${pxW}px;height:${pxH}px;`
+      +`padding:${pxMT}px ${pxMO}px ${pxMB}px ${pxMI}px;`
+      +`gap:${colGap}px;align-items:flex-start;`;
+
+    for(let ci=0;ci<r.columns;ci++){
+      const colEl=document.createElement('div');
+      colEl.className='book-col'+(r.columnRule&&ci>0?' col-rule':'');
+      // Use explicit width instead of flex:1 to match measurer exactly
+      colEl.style.cssText=`width:${colW}px;height:${cH}px;flex-shrink:0;`;
+      const idxs=pgCols[ci]||[];
+      colEl.innerHTML=idxs.map(i=>htmls[i]).join('');
+      page.appendChild(colEl);
+    }
+
+    // Page number
+    const pgN=document.createElement('div');
+    pgN.className='pg-num';
+    pgN.style.bottom=(pxMB/3)+'px';
+    pgN.style.fontFamily=d.typo.description.fam;
+    page.style.position='relative';
+    page.appendChild(pgN);
+    pgN.textContent=pi+1;
+
+    preview.appendChild(page);
+  });
+}
+
+// -- SECTION NAV --
+function buildSecTabs(){
+  const el=document.getElementById('sec-tabs');
+  el.innerHTML=SECTIONS.map(s=>`
+    <button class="sec-tab${s.id===activeSection?' active':''}" onclick="switchSection('${s.id}')">
+      ${s.label}<span class="cnt">${s.count}</span>
+    </button>`).join('');
+}
+function switchSection(id){
+  activeSection=id;
+  buildSecTabs();
+  applySectionDefaults(id);
+  updateSecNote(id);
+  buildAliasList();
+  render();
+}
+function applySectionDefaults(id){
+  const defs=SECTION_DEFAULTS[id];
+  if(!defs)return;
+  if(defs.emptyBehavior){
+    state.rules.emptyBehavior=defs.emptyBehavior;
+    const sel=document.getElementById('empty-beh-sel');
+    if(sel)sel.value=defs.emptyBehavior;
+  }
+}
+function updateSecNote(id){
+  const box=document.getElementById('sec-note-box');
+  if(!box)return;
+  const defs=SECTION_DEFAULTS[id];
+  box.innerHTML=defs&&defs.note?`<div class="sec-note">${defs.note}</div>`:'';
+}
+
+// -- SIDEBAR BUILDERS --
+function buildSegChecklist(){
+  document.getElementById('seg-checklist').innerHTML=SEG_TYPES.map(t=>`
+    <label class="seg-chk"><input type="checkbox" ${!state.rules.hiddenSegTypes.includes(t)?'checked':''} onchange="toggleSegType('${t}',this.checked)">${t}</label>`).join('');
+}
+function buildSegOrder(){
+  document.getElementById('seg-order').innerHTML=state.rules.segTypeOrder.map((t,i)=>`
+    <div style="display:flex;align-items:center;gap:5px;padding:2px 0">
+      <span style="font-size:10px;color:var(--muted)">⠿</span>
+      <span style="font-size:11px;flex:1">${t}</span>
+      <button style="border:none;background:none;cursor:pointer;font-size:10px;color:var(--muted)" onclick="moveSeg(${i},-1)" ${i===0?'disabled':''}>↑</button>
+      <button style="border:none;background:none;cursor:pointer;font-size:10px;color:var(--muted)" onclick="moveSeg(${i},1)" ${i===state.rules.segTypeOrder.length-1?'disabled':''}>↓</button>
+    </div>`).join('');
+}
+function toggleSegType(t,checked){
+  state.rules.hiddenSegTypes=checked?state.rules.hiddenSegTypes.filter(x=>x!==t):[...state.rules.hiddenSegTypes,t];
+  render();
+}
+function moveSeg(i,dir){
+  const a=state.rules.segTypeOrder,ni=i+dir;
+  if(ni<0||ni>=a.length)return;
+  [a[i],a[ni]]=[a[ni],a[i]];
+  buildSegOrder();render();
+}
+
+const TYPO_ELS=[['entry','Entry heading'],['segtype','Segment type'],['description','Description'],['refLow','Ref (low)'],['refHigh','Ref (high)'],['relTag','Rel tag'],['emptyFlag','[empty] flag']];
+const FONTS=[["'Playfair Display',Georgia,serif",'Playfair Display'],['Georgia,serif','Georgia'],["'Times New Roman',serif",'Times New Roman'],["'DM Sans',sans-serif",'DM Sans'],['system-ui,sans-serif','System UI']];
+
+function buildTypoPanel(){
+  document.getElementById('typo-panel').innerHTML=TYPO_ELS.map(([k,lbl])=>{
+    const t=state.design.typo[k];
+    const fopts=FONTS.map(([v,n])=>`<option value="${v}" ${t.fam===v?'selected':''}>${n}</option>`).join('');
+    return`<div class="typo-el">
+      <div class="typo-el-lbl">${lbl}</div>
+      <div class="typo-ctrls">
+        <select onchange="setTypo('${k}','fam',this.value)" style="width:105px">${fopts}</select>
+        <input type="number" value="${t.sz}" min="6" max="24" step=".5" style="width:38px" oninput="setTypo('${k}','sz',parseFloat(this.value))">
+        <select onchange="setTypo('${k}','wt',parseInt(this.value))" style="width:58px">
+          <option value="400" ${t.wt===400?'selected':''}>Regular</option>
+          <option value="700" ${t.wt===700?'selected':''}>Bold</option>
+        </select>
+        <select onchange="setTypo('${k}','st',this.value)" style="width:58px">
+          <option value="normal" ${t.st==='normal'?'selected':''}>Normal</option>
+          <option value="italic" ${t.st==='italic'?'selected':''}>Italic</option>
+        </select>
+        <input type="color" value="${t.cl}" oninput="setTypo('${k}','cl',this.value)">
+      </div></div>`;
+  }).join('');
+}
+function setTypo(k,p,v){state.design.typo[k][p]=v;render();}
+
+// -- CONTROL BINDINGS --
+function setRule(k,v){state.rules[k]=v;render();}
+function setSp(k,v){state.design[k]=v;render();}
+function toggleRule(k,btn){state.rules[k]=!state.rules[k];btn.classList.toggle('on',state.rules[k]);render();}
+function setPageDim(){state.design.pageW=parseFloat(document.getElementById('d-pw').value)||7;state.design.pageH=parseFloat(document.getElementById('d-ph').value)||10;render();}
+function setMargins(){state.design.mgT=parseFloat(document.getElementById('d-mt').value)||0;state.design.mgB=parseFloat(document.getElementById('d-mb').value)||0;state.design.mgI=parseFloat(document.getElementById('d-mi').value)||0;state.design.mgO=parseFloat(document.getElementById('d-mo').value)||0;render();}
+function applyTrimPreset(v){const p={'7x10':[7,10],'6x9':[6,9],'8.5x11':[8.5,11]};if(!p[v])return;document.getElementById('d-pw').value=p[v][0];document.getElementById('d-ph').value=p[v][1];state.design.pageW=p[v][0];state.design.pageH=p[v][1];render();}
+function setMode(m){state.mode=m;document.getElementById('mode-ed').classList.toggle('active',m==='editorial');document.getElementById('mode-pr').classList.toggle('active',m==='print');render();}
+function exportPDF(){
+  const entries=applyRules(activeSection);
+  const flags=countFlags(entries);
+  if(state.rules.emptyBehavior==='block'&&flags>0){if(!confirm(`${flags} unresolved flags. Export anyway?`))return;}
+  const prev=state.mode;setMode('print');
+  setTimeout(()=>{window.print();setTimeout(()=>setMode(prev),500);},200);
+}
+
+// -- INLINE EDIT --
+let curEditKey=null;
+function openEdit(ev,key){
+  ev.stopPropagation();curEditKey=key;
+  const row=DATA.find(r=>{const k=`${r.s}|${r.e}|${r.seg}|${r.desc}|${(r.refs||[]).join(',')}`;return k===key;});
+  const ed=state.edits[key];
+  document.getElementById('pop-desc').value=ed?ed.desc:(row?row.desc||'':'');
+  document.getElementById('pop-rel').value=ed?ed.rel2:(row?row.rel2||2:2);
+  document.getElementById('pop-rel-tag').value=ed?ed.rel||'':(row?row.rel||'':'');
+  const pop=document.getElementById('edit-pop');
+  pop.style.display='block';
+  const rect=ev.target.getBoundingClientRect();
+  pop.style.left=Math.min(rect.left,window.innerWidth-220)+'px';
+  pop.style.top=(rect.bottom+4)+'px';
+}
+function closePop(){document.getElementById('edit-pop').style.display='none';curEditKey=null;}
+function saveEdit(){
+  if(!curEditKey)return;
+  state.edits[curEditKey]={desc:document.getElementById('pop-desc').value,rel2:parseInt(document.getElementById('pop-rel').value),rel:document.getElementById('pop-rel-tag').value||null};
+  closePop();render();
+}
+document.addEventListener('click',e=>{const p=document.getElementById('edit-pop');if(p.style.display==='block'&&!p.contains(e.target))closePop();});
+
+// -- ALIASES --
+function addAlias(){
+  const from=document.getElementById('alias-from').value.trim();
+  const to=document.getElementById('alias-to').value.trim();
+  if(!from||!to){alert('Both fields required.');return;}
+  if(from===to){alert('Alias and target must differ.');return;}
+  // Check for duplicate
+  if(state.aliases.find(a=>a.s===activeSection&&a.e===from)){
+    alert(`"${from}" already exists as an alias in this section.`);return;
+  }
+  state.aliases.push({s:activeSection,e:from,aliasOf:to,isAlias:true});
+  document.getElementById('alias-from').value='';
+  document.getElementById('alias-to').value='';
+  buildAliasList();
+  render();
+}
+
+function buildAliasList(){
+  const el=document.getElementById('alias-list');
+  if(!el)return;
+  const sectionAliases=state.aliases.filter(a=>a.s===activeSection);
+  if(!sectionAliases.length){
+    el.innerHTML=`<div style="font-size:11px;color:var(--muted);font-style:italic">No aliases for this section yet.</div>`;
+    return;
+  }
+  el.innerHTML=sectionAliases.map((a,i)=>`
+    <div style="display:flex;align-items:center;gap:5px;background:#f0ede6;border-radius:4px;padding:4px 7px">
+      <span style="font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+        <em>${a.e}</em> <span style="color:var(--muted)">→</span> ${a.aliasOf}
+      </span>
+      <button class="alias-del" data-section="${a.s}" data-entry="${a.e}"
+        style="border:none;background:none;cursor:pointer;color:var(--muted);font-size:14px;line-height:1;padding:0 2px"
+        title="Remove">×</button>
+    </div>`).join('');
+  // Attach delete handlers via event delegation
+  el.querySelectorAll('.alias-del').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const s=btn.dataset.section, e=btn.dataset.entry;
+      state.aliases=state.aliases.filter(a=>!(a.s===s&&a.e===e));
+      buildAliasList();render();
+    });
+  });
+}
+
+
+function savePreset(){const n=prompt('Preset name:','My Preset');if(!n)return;state.presets.push({name:n,rules:JSON.parse(JSON.stringify(state.rules)),design:JSON.parse(JSON.stringify(state.design)),edits:JSON.parse(JSON.stringify(state.edits)),aliases:JSON.parse(JSON.stringify(state.aliases))});localStorage.setItem('jem_p',JSON.stringify(state.presets));buildPresetSel();}
+function loadPreset(idx){const p=state.presets[parseInt(idx)];if(!p)return;state.rules=JSON.parse(JSON.stringify(p.rules));state.design=JSON.parse(JSON.stringify(p.design));state.edits=JSON.parse(JSON.stringify(p.edits));state.aliases=JSON.parse(JSON.stringify(p.aliases||[]));buildSegChecklist();buildSegOrder();buildTypoPanel();buildAliasList();render();}
+function exportPreset(){const a=document.createElement('a');a.href='data:application/json,'+encodeURIComponent(JSON.stringify({rules:state.rules,design:state.design,edits:state.edits,aliases:state.aliases},null,2));a.download='jem-preset.json';a.click();}
+function importPreset(){const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const p=JSON.parse(ev.target.result);state.rules={...state.rules,...p.rules};state.design={...state.design,...p.design};state.edits=p.edits||{};state.aliases=p.aliases||[];buildSegChecklist();buildSegOrder();buildTypoPanel();buildAliasList();render();}catch{alert('Invalid preset.');}};r.readAsText(f);};i.click();}
+function resetAll(){if(!confirm('Reset everything?'))return;location.reload();}
+function buildPresetSel(){const s=document.getElementById('preset-sel');s.innerHTML=state.presets.map((p,i)=>`<option value="${i}">${p.name}</option>`).join('')||'<option value="">No presets</option>';}
+
+// -- INIT --
+(function(){
+  try{const s=localStorage.getItem('jem_p');if(s)state.presets=JSON.parse(s);}catch{}
+  buildSecTabs();buildSegChecklist();buildSegOrder();buildTypoPanel();buildPresetSel();buildAliasList();
+  updateSecNote(activeSection);
+  render();
+  // Re-render once fonts are loaded so measurements are accurate
+  if(document.fonts && document.fonts.ready){
+    document.fonts.ready.then(()=>{ _doRender(); });
+  }
+})();
+</script>
+</body>
+</html>
