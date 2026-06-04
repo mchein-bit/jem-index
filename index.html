@@ -117,6 +117,10 @@ body{font-family:var(--ui);background:var(--bg);color:var(--ink);height:100vh;di
 #edit-pop button{padding:4px 9px;border:1px solid var(--sbb);border-radius:4px;font-size:11px;cursor:pointer;background:var(--paper);font-family:var(--ui)}
 #edit-pop button.pri{background:var(--accent);color:#fff;border-color:var(--accent)}
 
+/* See Also */
+.see-also{font-family:var(--serif);font-size:9.5px;font-style:italic;color:#555;margin-bottom:2px;}
+.see-also strong{font-style:normal;font-weight:600;color:#333;}
+
 @media print{
   #topbar,#sidebar{display:none!important}
   #preview-area{padding:0;background:white;display:block}
@@ -203,6 +207,39 @@ body{font-family:var(--ui);background:var(--bg);color:var(--ink);height:100vh;di
   <div class="cr"><label>Ref alignment</label><select onchange="setRule('refAlign',this.value)"><option value="pushed" selected>Pushed right</option><option value="inline">Inline</option></select></div>
   <div class="cr"><label>Ref separator</label><input type="text" value=" , " oninput="setRule('refSep',this.value)" style="width:55px"></div>
   <div class="cr"><label>Rel tag style</label><select onchange="setRule('relTagStyle',this.value)"><option value="brackets" selected>[ brackets ]</option><option value="parens">( parens )</option><option value="plain">plain</option></select></div>
+</div></details>
+
+<details class="sb-sec" id="sec-rules-panel" open><summary>Section Rules — <span id="sec-rules-label" style="text-transform:none;letter-spacing:0;font-weight:600;color:var(--accent)">People</span></summary><div class="sb-body">
+  <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:6px">Describe a rule in plain English. Claude interprets it and applies it to this section only. Toggle rules on/off with the switch.</div>
+  <div id="sec-rules-list" style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px"></div>
+  <div style="display:flex;gap:5px;align-items:flex-start">
+    <textarea id="sec-rule-input" placeholder="e.g. show only refs, no descriptions&#10;hide relationship tags&#10;top 3 lines per segment&#10;use inline ref style" rows="2" style="flex:1;padding:4px 6px;border:1px solid var(--sbb);border-radius:4px;font-size:11px;font-family:var(--ui);background:var(--paper);resize:none;line-height:1.4"></textarea>
+    <button class="pbtn pri" id="sec-rule-btn" onclick="addSectionRule()" style="white-space:nowrap;align-self:flex-end">Interpret</button>
+  </div>
+  <div id="sec-rule-status" style="font-size:10px;color:var(--muted);margin-top:4px;min-height:14px"></div>
+</div></details>
+
+
+<details class="sb-sec"><summary>See Also — <span id="see-also-label" style="text-transform:none;letter-spacing:0;font-weight:600;color:var(--accent)">People</span></summary><div class="sb-body">
+  <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:6px">Add cross-references to an entry. Appears under the heading as "See Also: X, Y, Z". Section-specific.</div>
+
+  <div class="cgl">Entry</div>
+  <div class="cr" style="margin-bottom:4px">
+    <select id="sa-entry-sel" style="width:100%;max-width:100%" onchange="buildSeeAlsoTargetList()">
+      <option value="">-- select an entry --</option>
+    </select>
+  </div>
+
+  <div id="sa-targets-area" style="display:none">
+    <div class="cgl">Cross-references</div>
+    <div id="sa-targets-list" style="display:flex;flex-direction:column;gap:3px;margin-bottom:6px;min-height:16px"></div>
+    <div style="position:relative">
+      <input type="text" id="sa-search" placeholder="Search entries..." autocomplete="off"
+        style="width:100%;padding:3px 6px;border:1px solid var(--sbb);border-radius:4px;font-size:11px;font-family:var(--ui);background:var(--paper)"
+        oninput="filterSeeAlsoSearch()">
+      <div id="sa-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--paper);border:1px solid var(--sbb);border-radius:4px;max-height:140px;overflow-y:auto;z-index:50;box-shadow:0 2px 8px rgba(0,0,0,.1)"></div>
+    </div>
+  </div>
 </div></details>
 
 <details class="sb-sec"><summary>Aliases</summary><div class="sb-body">
@@ -607,9 +644,16 @@ let state = {
       refHigh:    {fam:"'Playfair Display',Georgia,serif",sz:10.5,wt:700,st:'normal',cl:'#000000',ls:'0em'},
       relTag:     {fam:"'Playfair Display',Georgia,serif",sz:8.5,wt:400,st:'italic',cl:'#888888',ls:'0em'},
       emptyFlag:  {fam:"'Playfair Display',Georgia,serif",sz:10,wt:700,st:'normal',cl:'#b91c1c',ls:'0em'},
+      subHeading:    {fam:"'Playfair Display',Georgia,serif",sz:12,wt:700,st:'normal',cl:'#000000',ls:'0em'},
+      subsubHeading: {fam:"'Playfair Display',Georgia,serif",sz:11,wt:600,st:'normal',cl:'#222222',ls:'0em'},
     }
   },
   edits:{},presets:[],aliases:[],
+  seeAlso:{},  // {section|entryName: [targetName, ...]}
+  // sectionRules: per section, array of {id, text, diff:{rules:{},design:{}}, active:bool}
+  sectionRules:{
+    people:[],topics:[],dates:[],history:[],locations:[],nigunim:[],orgs:[]
+  },
 };
 
 // -- HELPERS --
@@ -625,8 +669,21 @@ function fmtRel(rel){
 function ts(t){return`font-family:${t.fam};font-size:${t.sz}px;font-weight:${t.wt};font-style:${t.st};color:${t.cl};letter-spacing:${t.ls}`;}
 
 // -- RULES ENGINE --
+// Returns effective rules for a section: global rules merged with active section rule diffs
+function effectiveRules(section){
+  const base={...state.rules};
+  const activeRules=(state.sectionRules[section]||[]).filter(r=>r.active&&r.diff&&r.diff.rules);
+  for(const r of activeRules) Object.assign(base, r.diff.rules);
+  return base;
+}
+function effectiveDesign(section){
+  const base={...state.design, typo:{...state.design.typo}};
+  const activeRules=(state.sectionRules[section]||[]).filter(r=>r.active&&r.diff&&r.diff.design);
+  for(const r of activeRules) Object.assign(base, r.diff.design);
+  return base;
+}
 function applyRules(section){
-  const r=state.rules,d=state.design;
+  const r=effectiveRules(section),d=effectiveDesign(section);
   const rows=DATA.filter(x=>x.s===section);
   
   // Aliases come from state, not DATA — filtered to current section
@@ -736,8 +793,8 @@ function countFlags(entries){
 }
 
 // -- REF RENDERING --
-function refHtml(line,isPeople){
-  const r=state.rules,d=state.design;
+function refHtml(line,isPeople,r,d){
+  r=r||state.rules; d=d||state.design;
   const isHigh=line.rel2>=r.boldThreshold;
   const t=isHigh?d.typo.refHigh:d.typo.refLow;
   const fw=(r.boldStyle==='bold'||r.boldStyle==='bold-underline')?'700':t.wt;
@@ -782,7 +839,7 @@ function buildEntry(e,r,d,isEd,isPeople){
         // Rows with refs but no desc (People, Nigunim) always render
         if(isEmpty&&!hasRefs&&(eb==='hide'||(!isEd&&eb==='flag')))continue;
         if(line.seg==='Films'&&!line.location&&r.filmUnknown==='hide-row')continue;
-        const rh=refHtml(line,isPeople);
+        const rh=refHtml(line,isPeople,r,d);
         if(rh===null)continue;
 
         if(isPeople){
@@ -811,14 +868,22 @@ function buildEntry(e,r,d,isEd,isPeople){
 
   let h=`<div class="entry" style="margin-top:${d.entryMT};margin-bottom:${d.entryMB}">`;
   h+=`<div class="entry-heading" style="${ts(tE)}">${e.name}</div>`;
+  // See Also — right under heading
+  const saKey=`${activeSection}|${e.name}`;
+  const saTargets=state.seeAlso[saKey];
+  if(saTargets&&saTargets.length){
+    h+=`<div class="see-also" style="padding-left:${d.segInd}"><strong>See Also:</strong> ${saTargets.join(', ')}</div>`;
+  }
   h+=segsHtml(e.directSegs||[]);
+  const tSub=d.typo.subHeading;
+  const tSsub=d.typo.subsubHeading;
   for(const st of(e.subtags||[])){
-    h+=`<div style="padding-left:${d.subInd}">`;
-    h+=`<div class="sub-heading" style="${ts(tE)};font-size:${tE.sz-1.5}px">${st.name}</div>`;
+    h+=`<div style="padding-left:${d.subInd};margin-top:${d.segMT}">`;
+    h+=`<div class="sub-heading" style="${ts(tSub)}">${st.name}</div>`;
     h+=segsHtml(st.segs);
     for(const ss of st.subsubs){
-      h+=`<div style="padding-left:${d.subInd}">`;
-      h+=`<div class="subsub-heading" style="${ts(tE)};font-size:${tE.sz-2.5}px;font-weight:600">${ss.name}</div>`;
+      h+=`<div style="padding-left:${d.subInd};margin-top:${d.segMT}">`;
+      h+=`<div class="subsub-heading" style="${ts(tSsub)}">${ss.name}</div>`;
       h+=segsHtml(ss.segs);
       h+=`</div>`;
     }
@@ -838,7 +903,7 @@ function render(){
 }
 
 function _doRender(){
-  const r=state.rules,d=state.design;
+  const r=effectiveRules(activeSection),d=effectiveDesign(activeSection);
   const isEd=state.mode==='editorial';
   const isPeople=activeSection==='people';
   const entries=applyRules(activeSection);
@@ -949,6 +1014,8 @@ function switchSection(id){
   applySectionDefaults(id);
   updateSecNote(id);
   buildAliasList();
+  buildSectionRulesList();
+  buildSeeAlsoPanel();
   render();
 }
 function applySectionDefaults(id){
@@ -992,7 +1059,17 @@ function moveSeg(i,dir){
   buildSegOrder();render();
 }
 
-const TYPO_ELS=[['entry','Entry heading'],['segtype','Segment type'],['description','Description'],['refLow','Ref (low)'],['refHigh','Ref (high)'],['relTag','Rel tag'],['emptyFlag','[empty] flag']];
+const TYPO_ELS=[
+  ['entry','Entry heading'],
+  ['subHeading','Sub-entry heading'],
+  ['subsubHeading','Sub-sub heading'],
+  ['segtype','Segment type'],
+  ['description','Description'],
+  ['refLow','Ref (low relevancy)'],
+  ['refHigh','Ref (high relevancy)'],
+  ['relTag','Rel tag'],
+  ['emptyFlag','[empty] flag'],
+];
 const FONTS=[["'Playfair Display',Georgia,serif",'Playfair Display'],['Georgia,serif','Georgia'],["'Times New Roman',serif",'Times New Roman'],["'DM Sans',sans-serif",'DM Sans'],['system-ui,sans-serif','System UI']];
 
 function buildTypoPanel(){
@@ -1057,7 +1134,264 @@ function saveEdit(){
 }
 document.addEventListener('click',e=>{const p=document.getElementById('edit-pop');if(p.style.display==='block'&&!p.contains(e.target))closePop();});
 
-// -- ALIASES --
+// -- SECTION RULES (AI-powered) --
+
+// Full list of controllable rule keys Claude can return
+const RULE_SCHEMA = {
+  rules: {
+    showEmptyEntries:'bool', minSegmentTypes:'number',
+    hiddenSegTypes:'string[]', topN:'number|null',
+    minRelevancy:'1|2|3', condSuppress:'bool', tieBreaker:'"sheet"|"alpha"',
+    suppressDupes:'bool', showRelTag:'bool', applyTransform:'bool',
+    maxRefs:'number|null', boldThreshold:'2|3',
+    boldStyle:'"bold-underline"|"bold"|"underline"',
+    emptyBehavior:'"flag"|"hide"|"block"',
+    filmUnknown:'"placeholder"|"hide-num"|"hide-row"',
+    refSep:'string', refAlign:'"pushed"|"inline"',
+    relTagStyle:'"brackets"|"parens"|"plain"',
+    entryDivider:'"none"|"space"|"rule"|"dotted"',
+    columns:'1|2|3', columnGap:'number', columnRule:'bool',
+  },
+  design: {
+    entryMT:'px-string', entryMB:'px-string',
+    segMT:'px-string', segMB:'px-string',
+    lineH:'number-string', lineGap:'px-string',
+    subInd:'px-string', segInd:'px-string', descInd:'px-string',
+  }
+};
+
+const SYSTEM_PROMPT = `You are a layout rules interpreter for a print book index tool.
+The operator describes a formatting or filtering rule in plain English.
+You must return ONLY a JSON object with two optional keys: "rules" and "design".
+Each key maps to a flat object of property overrides matching the schema below.
+Only include properties that the rule actually changes — omit everything else.
+Also return a "summary" string (max 8 words) describing what the rule does.
+Also return a "keys" array listing every property key you are changing.
+
+SCHEMA:
+rules: ${JSON.stringify(RULE_SCHEMA.rules)}
+design: ${JSON.stringify(RULE_SCHEMA.design)}
+
+hiddenSegTypes is an array of segment type names to hide. Valid values: "Addresses","Timeless Moments","Conversations","My Encounter","Short Films","Films"
+px-string means a string like "8px" or "12px".
+number-string means a string like "1.4" or "2".
+
+Examples:
+"show only refs, no descriptions" -> {"rules":{"showRelTag":false,"emptyBehavior":"hide"},"design":{},"summary":"Hide descriptions and rel tags","keys":["showRelTag","emptyBehavior"]}
+"top 3 lines per segment" -> {"rules":{"topN":3},"design":{},"summary":"Limit to top 3 lines per segment","keys":["topN"]}
+"hide relationship tags" -> {"rules":{"showRelTag":false},"design":{},"summary":"Hide relationship tags","keys":["showRelTag"]}
+"use inline ref style" -> {"rules":{"refAlign":"inline"},"design":{},"summary":"Inline reference alignment","keys":["refAlign"]}
+"only show addresses and short films" -> {"rules":{"hiddenSegTypes":["Timeless Moments","Conversations","My Encounter","Films"]},"design":{},"summary":"Show only Addresses and Short Films","keys":["hiddenSegTypes"]}
+"show only relevancy 3" -> {"rules":{"minRelevancy":3},"design":{},"summary":"Show only relevancy 3 lines","keys":["minRelevancy"]}
+"increase description indent to 20px" -> {"rules":{},"design":{"descInd":"20px"},"summary":"Increase description indent","keys":["descInd"]}
+
+Return ONLY valid JSON. No markdown, no explanation.`;
+
+async function addSectionRule(){
+  const textarea=document.getElementById('sec-rule-input');
+  const btn=document.getElementById('sec-rule-btn');
+  const status=document.getElementById('sec-rule-status');
+  const text=textarea.value.trim();
+  if(!text)return;
+
+  btn.disabled=true;
+  btn.textContent='...';
+  status.textContent='Interpreting rule...';
+  status.style.color='var(--muted)';
+
+  try{
+    const response=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1000,
+        system:SYSTEM_PROMPT,
+        messages:[{role:'user',content:text}]
+      })
+    });
+    const data=await response.json();
+    const raw=data.content?.[0]?.text||'';
+    let parsed;
+    try{ parsed=JSON.parse(raw.replace(/```json|```/g,'').trim()); }
+    catch{ throw new Error('Could not parse response: '+raw.substring(0,100)); }
+
+    const diff={rules:parsed.rules||{},design:parsed.design||{}};
+    const summary=parsed.summary||text.substring(0,40);
+    const newKeys=parsed.keys||[...Object.keys(diff.rules),...Object.keys(diff.design)];
+
+    // Conflict detection: check if any active rule already touches these keys
+    const existing=state.sectionRules[activeSection]||[];
+    const conflicts=existing.filter(r=>r.active&&r.keys&&r.keys.some(k=>newKeys.includes(k)));
+
+    if(conflicts.length){
+      const conflictNames=conflicts.map(r=>'"'+r.summary+'"').join(', ');
+      const proceed=confirm(`This rule conflicts with: ${conflictNames}\n\nThe existing rule(s) affect the same properties. Add anyway?`);
+      if(!proceed){
+        status.textContent='Rule not added — conflict with existing rule.';
+        status.style.color='var(--danger)';
+        btn.disabled=false; btn.textContent='Interpret';
+        return;
+      }
+    }
+
+    if(!state.sectionRules[activeSection]) state.sectionRules[activeSection]=[];
+    state.sectionRules[activeSection].push({
+      id:Date.now(), text, summary, diff, keys:newKeys, active:true
+    });
+
+    textarea.value='';
+    status.textContent='Rule added: '+summary;
+    status.style.color='#2d6a2d';
+    buildSectionRulesList();
+    render();
+
+  } catch(err){
+    status.textContent='Error: '+err.message;
+    status.style.color='var(--danger)';
+  }
+
+  btn.disabled=false;
+  btn.textContent='Interpret';
+}
+
+function toggleSectionRule(id){
+  const rules=state.sectionRules[activeSection]||[];
+  const rule=rules.find(r=>r.id===id);
+  if(rule){rule.active=!rule.active; render();}
+  buildSectionRulesList();
+}
+
+function deleteSectionRule(id){
+  state.sectionRules[activeSection]=(state.sectionRules[activeSection]||[]).filter(r=>r.id!==id);
+  buildSectionRulesList();
+  render();
+}
+
+function buildSectionRulesList(){
+  const el=document.getElementById('sec-rules-list');
+  if(!el)return;
+  const lbl=document.getElementById('sec-rules-label');
+  if(lbl){const sec=SECTIONS.find(s=>s.id===activeSection);lbl.textContent=sec?sec.label:activeSection;}
+  const rules=state.sectionRules[activeSection]||[];
+  if(!rules.length){
+    el.innerHTML=`<div style="font-size:11px;color:var(--muted);font-style:italic">No rules yet. Describe a rule above.</div>`;
+    return;
+  }
+  el.innerHTML='';
+  rules.forEach(rule=>{
+    const row=document.createElement('div');
+    row.style.cssText=`display:flex;align-items:flex-start;gap:6px;padding:6px 8px;background:${rule.active?'#eeedf8':'#f0ede6'};border-radius:5px;border:1px solid ${rule.active?'#c8c5e8':'transparent'};`;
+    // Build keys badge
+    const keysBadge=rule.keys&&rule.keys.length
+      ?`<div style="font-size:9px;color:var(--muted);margin-top:2px;line-height:1.3">${rule.keys.join(', ')}</div>`:'';
+    row.innerHTML=`
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;font-weight:500;color:${rule.active?'var(--ink)':'var(--muted)'};${rule.active?'':'text-decoration:line-through'}">${rule.summary}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${rule.text}">${rule.text}</div>
+        ${keysBadge}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-end;flex-shrink:0">
+        <button class="tog ${rule.active?'on':''}" title="${rule.active?'Active — click to disable':'Inactive — click to enable'}" style="margin-top:2px"></button>
+        <button style="border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;line-height:1;padding:0" title="Delete rule">×</button>
+      </div>`;
+    row.querySelector('.tog').addEventListener('click',()=>toggleSectionRule(rule.id));
+    row.querySelector('button:last-child').addEventListener('click',()=>deleteSectionRule(rule.id));
+    el.appendChild(row);
+  });
+}
+
+
+
+// -- SEE ALSO --
+function seeAlsoKey(entry){ return `${activeSection}|${entry}`; }
+
+function getSectionEntryNames(){
+  const seen=new Set();
+  DATA.filter(r=>r.s===activeSection&&!r.isAlias).forEach(r=>seen.add(r.e));
+  return [...seen].sort((a,b)=>a.localeCompare(b));
+}
+
+function buildSeeAlsoPanel(){
+  const lbl=document.getElementById('see-also-label');
+  if(lbl){const sec=SECTIONS.find(s=>s.id===activeSection);if(sec)lbl.textContent=sec.label;}
+  const sel=document.getElementById('sa-entry-sel');
+  if(!sel)return;
+  const entries=getSectionEntryNames();
+  sel.innerHTML=`<option value="">-- select an entry --</option>`
+    +entries.map(e=>`<option value="${e.replace(/"/g,'&quot;')}">${e}</option>`).join('');
+  const area=document.getElementById('sa-targets-area');
+  if(area)area.style.display='none';
+}
+
+function buildSeeAlsoTargetList(){
+  const sel=document.getElementById('sa-entry-sel');
+  const entry=sel.value;
+  const area=document.getElementById('sa-targets-area');
+  if(!entry){area.style.display='none';return;}
+  area.style.display='block';
+  const key=seeAlsoKey(entry);
+  const targets=state.seeAlso[key]||[];
+  const list=document.getElementById('sa-targets-list');
+  if(!targets.length){
+    list.innerHTML=`<div style="font-size:11px;color:var(--muted);font-style:italic">No cross-references yet.</div>`;
+    return;
+  }
+  list.innerHTML='';
+  targets.forEach(t=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:5px;background:#f0ede6;border-radius:4px;padding:3px 7px;';
+    row.innerHTML=`<span style="font-size:11px;flex:1">${t}</span>
+      <button style="border:none;background:none;cursor:pointer;color:var(--muted);font-size:14px;line-height:1;padding:0" title="Remove">×</button>`;
+    row.querySelector('button').addEventListener('click',()=>{
+      state.seeAlso[key]=(state.seeAlso[key]||[]).filter(x=>x!==t);
+      if(!state.seeAlso[key].length)delete state.seeAlso[key];
+      buildSeeAlsoTargetList();render();
+    });
+    list.appendChild(row);
+  });
+}
+
+function filterSeeAlsoSearch(){
+  const sel=document.getElementById('sa-entry-sel');
+  const entry=sel.value;
+  if(!entry)return;
+  const q=document.getElementById('sa-search').value.trim().toLowerCase();
+  const dropdown=document.getElementById('sa-dropdown');
+  if(!q){dropdown.style.display='none';return;}
+  const key=seeAlsoKey(entry);
+  const existing=state.seeAlso[key]||[];
+  const matches=getSectionEntryNames()
+    .filter(e=>e!==entry&&e.toLowerCase().includes(q)&&!existing.includes(e))
+    .slice(0,10);
+  if(!matches.length){dropdown.style.display='none';return;}
+  dropdown.style.display='block';
+  dropdown.innerHTML='';
+  matches.forEach(m=>{
+    const item=document.createElement('div');
+    item.style.cssText='padding:5px 8px;font-size:11px;cursor:pointer;border-bottom:0.5px solid var(--sbb);';
+    item.textContent=m;
+    item.addEventListener('mousedown',e2=>{e2.preventDefault();addSeeAlsoTarget(entry,m);});
+    item.addEventListener('mouseover',()=>item.style.background='#e8e4dc');
+    item.addEventListener('mouseout',()=>item.style.background='');
+    dropdown.appendChild(item);
+  });
+}
+
+function addSeeAlsoTarget(entry,target){
+  const key=seeAlsoKey(entry);
+  if(!state.seeAlso[key])state.seeAlso[key]=[];
+  if(!state.seeAlso[key].includes(target))state.seeAlso[key].push(target);
+  document.getElementById('sa-search').value='';
+  document.getElementById('sa-dropdown').style.display='none';
+  buildSeeAlsoTargetList();render();
+}
+
+document.addEventListener('click',e=>{
+  const dd=document.getElementById('sa-dropdown');
+  if(dd&&!dd.contains(e.target)&&e.target.id!=='sa-search')dd.style.display='none';
+});
+
 function addAlias(){
   const from=document.getElementById('alias-from').value.trim();
   const to=document.getElementById('alias-to').value.trim();
@@ -1102,17 +1436,17 @@ function buildAliasList(){
 }
 
 
-function savePreset(){const n=prompt('Preset name:','My Preset');if(!n)return;state.presets.push({name:n,rules:JSON.parse(JSON.stringify(state.rules)),design:JSON.parse(JSON.stringify(state.design)),edits:JSON.parse(JSON.stringify(state.edits)),aliases:JSON.parse(JSON.stringify(state.aliases))});localStorage.setItem('jem_p',JSON.stringify(state.presets));buildPresetSel();}
-function loadPreset(idx){const p=state.presets[parseInt(idx)];if(!p)return;state.rules=JSON.parse(JSON.stringify(p.rules));state.design=JSON.parse(JSON.stringify(p.design));state.edits=JSON.parse(JSON.stringify(p.edits));state.aliases=JSON.parse(JSON.stringify(p.aliases||[]));buildSegChecklist();buildSegOrder();buildTypoPanel();buildAliasList();render();}
-function exportPreset(){const a=document.createElement('a');a.href='data:application/json,'+encodeURIComponent(JSON.stringify({rules:state.rules,design:state.design,edits:state.edits,aliases:state.aliases},null,2));a.download='jem-preset.json';a.click();}
-function importPreset(){const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const p=JSON.parse(ev.target.result);state.rules={...state.rules,...p.rules};state.design={...state.design,...p.design};state.edits=p.edits||{};state.aliases=p.aliases||[];buildSegChecklist();buildSegOrder();buildTypoPanel();buildAliasList();render();}catch{alert('Invalid preset.');}};r.readAsText(f);};i.click();}
+function savePreset(){const n=prompt('Preset name:','My Preset');if(!n)return;state.presets.push({name:n,rules:JSON.parse(JSON.stringify(state.rules)),design:JSON.parse(JSON.stringify(state.design)),edits:JSON.parse(JSON.stringify(state.edits)),aliases:JSON.parse(JSON.stringify(state.aliases)),sectionRules:JSON.parse(JSON.stringify(state.sectionRules)),seeAlso:JSON.parse(JSON.stringify(state.seeAlso))});localStorage.setItem('jem_p',JSON.stringify(state.presets));buildPresetSel();}
+function loadPreset(idx){const p=state.presets[parseInt(idx)];if(!p)return;state.rules=JSON.parse(JSON.stringify(p.rules));state.design=JSON.parse(JSON.stringify(p.design));state.edits=JSON.parse(JSON.stringify(p.edits));state.aliases=JSON.parse(JSON.stringify(p.aliases||[]));state.sectionRules=JSON.parse(JSON.stringify(p.sectionRules||{people:[],topics:[],dates:[],history:[],locations:[],nigunim:[],orgs:[]}));state.seeAlso=JSON.parse(JSON.stringify(p.seeAlso||{}));buildSegChecklist();buildSegOrder();buildTypoPanel();buildAliasList();buildSectionRulesList();buildSeeAlsoPanel();render();}
+function exportPreset(){const a=document.createElement('a');a.href='data:application/json,'+encodeURIComponent(JSON.stringify({rules:state.rules,design:state.design,edits:state.edits,aliases:state.aliases,sectionRules:state.sectionRules,seeAlso:state.seeAlso},null,2));a.download='jem-preset.json';a.click();}
+function importPreset(){const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const p=JSON.parse(ev.target.result);state.rules={...state.rules,...p.rules};state.design={...state.design,...p.design};state.edits=p.edits||{};state.aliases=p.aliases||[];state.sectionRules=p.sectionRules||{people:[],topics:[],dates:[],history:[],locations:[],nigunim:[],orgs:[]};state.seeAlso=p.seeAlso||{};buildSegChecklist();buildSegOrder();buildTypoPanel();buildAliasList();buildSectionRulesList();buildSeeAlsoPanel();render();}catch{alert('Invalid preset.');}};r.readAsText(f);};i.click();}
 function resetAll(){if(!confirm('Reset everything?'))return;location.reload();}
 function buildPresetSel(){const s=document.getElementById('preset-sel');s.innerHTML=state.presets.map((p,i)=>`<option value="${i}">${p.name}</option>`).join('')||'<option value="">No presets</option>';}
 
 // -- INIT --
 (function(){
   try{const s=localStorage.getItem('jem_p');if(s)state.presets=JSON.parse(s);}catch{}
-  buildSecTabs();buildSegChecklist();buildSegOrder();buildTypoPanel();buildPresetSel();buildAliasList();
+  buildSecTabs();buildSegChecklist();buildSegOrder();buildTypoPanel();buildPresetSel();buildAliasList();buildSectionRulesList();buildSeeAlsoPanel();
   updateSecNote(activeSection);
   render();
   // Re-render once fonts are loaded so measurements are accurate
