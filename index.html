@@ -1767,15 +1767,17 @@ function buildEntry(e,r,d,isEd,isPeople){
 }
 
 // -- RENDER --
-let _renderPending=false;
+let _renderTimer=null;
+let _reflowDone=false;
 function render(){
-  // Debounce + defer past font loading
-  if(_renderPending)return;
-  _renderPending=true;
-  requestAnimationFrame(()=>{_renderPending=false;_doRender();});
+  if(_renderTimer)clearTimeout(_renderTimer);
+  _reflowDone=false;
+  _renderTimer=setTimeout(()=>{ _doRender(); },50);
 }
 
 function _doRender(){
+  const preview=document.getElementById('preview-area');
+  const savedScroll=preview.scrollTop;
   const r=effectiveRules(activeSection),d=effectiveDesign(activeSection);
   const isEd=state.mode==='editorial';
   const isPeople=activeSection==='people';
@@ -1793,7 +1795,6 @@ function _doRender(){
   const totalColSpace=pxW-pxMI-pxMO-(r.columns-1)*colGap;
   const colW=Math.floor(totalColSpace/r.columns);
 
-  const preview=document.getElementById('preview-area');
   preview.querySelectorAll('.book-page').forEach(p=>p.remove());
 
   // Build entry HTML strings once
@@ -1883,16 +1884,16 @@ function _doRender(){
     page.appendChild(pgN);
     preview.appendChild(page);
   });
+  preview.scrollTop=savedScroll;
 
-  // --- PASS 4: post-render correction ---
-  // After DOM is painted, check if any column is actually overflowing
-  // and re-render if measurements were off (e.g. fonts just loaded)
+  // --- PASS 4: post-render correction (at most once per render cycle) ---
   requestAnimationFrame(()=>{
+    if(_reflowDone) return;
     let needsReflow=false;
     preview.querySelectorAll('.book-col').forEach(colEl=>{
-      if(colEl.scrollHeight>colEl.clientHeight+8) needsReflow=true;
+      if(colEl.scrollHeight>colEl.clientHeight+20) needsReflow=true;
     });
-    if(needsReflow) _doRender();
+    if(needsReflow){ _reflowDone=true; _doRender(); }
   });
 }
 
