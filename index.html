@@ -1127,6 +1127,7 @@ function _doRender(){
   const colW=Math.floor(totalColSpace/r.columns);
 
   const preview=document.getElementById('preview-area');
+  const savedScroll=preview.scrollTop;
   preview.querySelectorAll('.book-page').forEach(p=>p.remove());
 
   // Build entry HTML strings once
@@ -1227,6 +1228,7 @@ function _doRender(){
     });
     if(needsReflow) _doRender();
   });
+  preview.scrollTop=savedScroll;
 }
 
 // -- SECTION NAV --
