@@ -968,6 +968,7 @@ function _doRender(){
 
   // Render pages
   const preview=document.getElementById('preview-area');
+  const savedScroll=preview.scrollTop;
   preview.querySelectorAll('.book-page').forEach(p=>p.remove());
 
   pages.forEach((pgCols,pi)=>{
@@ -998,6 +999,7 @@ function _doRender(){
 
     preview.appendChild(page);
   });
+  preview.scrollTop=savedScroll;
 }
 
 // -- SECTION NAV --
