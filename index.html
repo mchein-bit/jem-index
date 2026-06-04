@@ -1340,7 +1340,6 @@ let state = {
     emptyBehavior:'flag', filmUnknown:'placeholder',
     refSep:' , ', refAlign:'pushed', relTagStyle:'brackets', entryDivider:'none',
     columns:2, columnGap:0.25, columnRule:false,
-    showVideoPhotos:true, videoPhotoW:72, videoPhotoH:54,
   },
   design:{
     pageW:7,pageH:10,mgT:.75,mgB:.75,mgI:.875,mgO:.625,
@@ -1364,6 +1363,33 @@ let state = {
   // sectionRules: per section, array of {id, text, diff:{rules:{},design:{}}, active:bool}
   sectionRules:{
     people:[],topics:[],dates:[],history:[],locations:[],nigunim:[],orgs:[]
+  },
+  videoDescRules:{
+    showEmptyEntries:true, minSegmentTypes:1,
+    hiddenSegTypes:[], segTypeOrder:[...SEG_TYPES],
+    topN:null, minRelevancy:1, condSuppress:false,
+    tieBreaker:'sheet', suppressDupes:false, showRelTag:true,
+    applyTransform:true, maxRefs:null, boldThreshold:3, boldStyle:'bold-underline',
+    emptyBehavior:'flag', filmUnknown:'placeholder',
+    refSep:' , ', refAlign:'pushed', relTagStyle:'brackets', entryDivider:'none',
+    columns:1, columnGap:0.25, columnRule:false,
+    showVideoPhotos:true, videoPhotoW:72, videoPhotoH:54,
+  },
+  videoDescDesign:{
+    pageW:7,pageH:10,mgT:.75,mgB:.75,mgI:.875,mgO:.625,
+    entryMT:'10px',entryMB:'2px',segMT:'5px',segMB:'1px',
+    lineH:'1.4',lineGap:'1px',subInd:'10px',segInd:'8px',descInd:'16px',
+    typo:{
+      entry:      {fam:"'Playfair Display',Georgia,serif",sz:14,wt:700,st:'normal',cl:'#000000',ls:'0em'},
+      segtype:    {fam:"'Playfair Display',Georgia,serif",sz:9, wt:400,st:'italic',cl:'#444444',ls:'0.07em'},
+      description:{fam:"'Playfair Display',Georgia,serif",sz:10.5,wt:400,st:'normal',cl:'#000000',ls:'0em'},
+      refLow:     {fam:"'Playfair Display',Georgia,serif",sz:10.5,wt:400,st:'italic',cl:'#444444',ls:'0em'},
+      refHigh:    {fam:"'Playfair Display',Georgia,serif",sz:10.5,wt:700,st:'normal',cl:'#000000',ls:'0em'},
+      relTag:     {fam:"'Playfair Display',Georgia,serif",sz:8.5,wt:400,st:'italic',cl:'#888888',ls:'0em'},
+      emptyFlag:  {fam:"'Playfair Display',Georgia,serif",sz:10,wt:700,st:'normal',cl:'#b91c1c',ls:'0em'},
+      subHeading:    {fam:"'Playfair Display',Georgia,serif",sz:12,wt:700,st:'normal',cl:'#000000',ls:'0em'},
+      subsubHeading: {fam:"'Playfair Display',Georgia,serif",sz:11,wt:600,st:'normal',cl:'#222222',ls:'0em'},
+    }
   },
 };
 
@@ -1603,8 +1629,8 @@ const VIDEO_TYPE_ORDER = ['A','TM','C','ME','SF','F'];
 const VIDEO_TYPE_LABELS = {A:'Addresses',TM:'Timeless Moments',C:'Conversations',ME:'My Encounter',SF:'Short Films',F:'Films'};
 
 function buildVideoDescPage(){
-  const d=effectiveDesign('videodesc');
-  const r=effectiveRules('videodesc');
+  const d=state.videoDescDesign;
+  const r=state.videoDescRules;
   const isEd=state.mode==='editorial';
 
   // Group by type
@@ -1627,9 +1653,9 @@ function buildVideoDescPage(){
     const summaryStyle=`font-family:${tDesc.fam};font-size:${tDesc.sz}px;color:${tDesc.cl};line-height:${d.lineH};margin-top:2px;`;
     const meta=[v.date,v.hebrew,v.duration,v.occasion].filter(Boolean).join(' · ');
 
-    const showPhoto = v.showPhoto !== false && state.rules.showVideoPhotos !== false;
-    const photoW = state.rules.videoPhotoW || 72;
-    const photoH = state.rules.videoPhotoH || 54;
+    const showPhoto = v.showPhoto !== false && r.showVideoPhotos !== false;
+    const photoW = r.videoPhotoW || 72;
+    const photoH = r.videoPhotoH || 54;
 
     const photoHtml = showPhoto ? `<div style="
       float:left;
@@ -2031,8 +2057,8 @@ function _doRender(){
 }
 
 function _doRenderVideoDesc(){
-  const d=effectiveDesign('videodesc');
-  const r=effectiveRules('videodesc');
+  const d=state.videoDescDesign;
+  const r=state.videoDescRules;
   const PX=96;
   const pxW=d.pageW*PX, pxH=d.pageH*PX;
   const pxMT=d.mgT*PX, pxMB=d.mgB*PX, pxMI=d.mgI*PX, pxMO=d.mgO*PX;
@@ -2217,15 +2243,15 @@ function buildTypoPanel(){
       </div></div>`;
   }).join('');
 }
-function setTypo(k,p,v){state.design.typo[k][p]=v;render();}
+function setTypo(k,p,v){const d=activeSection==='videodesc'?state.videoDescDesign:state.design;d.typo[k][p]=v;render();}
 
 // -- CONTROL BINDINGS --
-function setRule(k,v){state.rules[k]=v;render();}
-function setSp(k,v){state.design[k]=v;render();}
-function toggleRule(k,btn){state.rules[k]=!state.rules[k];btn.classList.toggle('on',state.rules[k]);render();}
-function setPageDim(){state.design.pageW=parseFloat(document.getElementById('d-pw').value)||7;state.design.pageH=parseFloat(document.getElementById('d-ph').value)||10;render();}
-function setMargins(){state.design.mgT=parseFloat(document.getElementById('d-mt').value)||0;state.design.mgB=parseFloat(document.getElementById('d-mb').value)||0;state.design.mgI=parseFloat(document.getElementById('d-mi').value)||0;state.design.mgO=parseFloat(document.getElementById('d-mo').value)||0;render();}
-function applyTrimPreset(v){const p={'7x10':[7,10],'6x9':[6,9],'8.5x11':[8.5,11]};if(!p[v])return;document.getElementById('d-pw').value=p[v][0];document.getElementById('d-ph').value=p[v][1];state.design.pageW=p[v][0];state.design.pageH=p[v][1];render();}
+function setRule(k,v){const r=activeSection==='videodesc'?state.videoDescRules:state.rules;r[k]=v;render();}
+function setSp(k,v){const d=activeSection==='videodesc'?state.videoDescDesign:state.design;d[k]=v;render();}
+function toggleRule(k,btn){const r=activeSection==='videodesc'?state.videoDescRules:state.rules;r[k]=!r[k];btn.classList.toggle('on',r[k]);render();}
+function setPageDim(){const d=activeSection==='videodesc'?state.videoDescDesign:state.design;d.pageW=parseFloat(document.getElementById('d-pw').value)||7;d.pageH=parseFloat(document.getElementById('d-ph').value)||10;render();}
+function setMargins(){const d=activeSection==='videodesc'?state.videoDescDesign:state.design;d.mgT=parseFloat(document.getElementById('d-mt').value)||0;d.mgB=parseFloat(document.getElementById('d-mb').value)||0;d.mgI=parseFloat(document.getElementById('d-mi').value)||0;d.mgO=parseFloat(document.getElementById('d-mo').value)||0;render();}
+function applyTrimPreset(v){const p={'7x10':[7,10],'6x9':[6,9],'8.5x11':[8.5,11]};if(!p[v])return;document.getElementById('d-pw').value=p[v][0];document.getElementById('d-ph').value=p[v][1];const d=activeSection==='videodesc'?state.videoDescDesign:state.design;d.pageW=p[v][0];d.pageH=p[v][1];render();}
 function setMode(m){state.mode=m;document.getElementById('mode-ed').classList.toggle('active',m==='editorial');document.getElementById('mode-pr').classList.toggle('active',m==='print');render();}
 function exportPDF(){
   const entries=applyRules(activeSection);
@@ -2561,10 +2587,10 @@ function buildAliasList(){
 }
 
 
-function savePreset(){const n=prompt('Preset name:','My Preset');if(!n)return;state.presets.push({name:n,rules:JSON.parse(JSON.stringify(state.rules)),design:JSON.parse(JSON.stringify(state.design)),edits:JSON.parse(JSON.stringify(state.edits)),aliases:JSON.parse(JSON.stringify(state.aliases)),sectionRules:JSON.parse(JSON.stringify(state.sectionRules)),seeAlso:JSON.parse(JSON.stringify(state.seeAlso))});localStorage.setItem('jem_p',JSON.stringify(state.presets));buildPresetSel();}
-function loadPreset(idx){const p=state.presets[parseInt(idx)];if(!p)return;state.rules=JSON.parse(JSON.stringify(p.rules));state.design=JSON.parse(JSON.stringify(p.design));state.edits=JSON.parse(JSON.stringify(p.edits));state.aliases=JSON.parse(JSON.stringify(p.aliases||[]));state.sectionRules=JSON.parse(JSON.stringify(p.sectionRules||{people:[],topics:[],dates:[],history:[],locations:[],nigunim:[],orgs:[]}));state.seeAlso=JSON.parse(JSON.stringify(p.seeAlso||{}));buildSegChecklist();buildSegOrder();buildTypoPanel();buildAliasList();buildSectionRulesList();buildSeeAlsoPanel();render();}
-function exportPreset(){const a=document.createElement('a');a.href='data:application/json,'+encodeURIComponent(JSON.stringify({rules:state.rules,design:state.design,edits:state.edits,aliases:state.aliases,sectionRules:state.sectionRules,seeAlso:state.seeAlso},null,2));a.download='jem-preset.json';a.click();}
-function importPreset(){const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const p=JSON.parse(ev.target.result);state.rules={...state.rules,...p.rules};state.design={...state.design,...p.design};state.edits=p.edits||{};state.aliases=p.aliases||[];state.sectionRules=p.sectionRules||{people:[],topics:[],dates:[],history:[],locations:[],nigunim:[],orgs:[]};state.seeAlso=p.seeAlso||{};buildSegChecklist();buildSegOrder();buildTypoPanel();buildAliasList();buildSectionRulesList();buildSeeAlsoPanel();render();}catch{alert('Invalid preset.');}};r.readAsText(f);};i.click();}
+function savePreset(){const n=prompt('Preset name:','My Preset');if(!n)return;state.presets.push({name:n,rules:JSON.parse(JSON.stringify(state.rules)),design:JSON.parse(JSON.stringify(state.design)),edits:JSON.parse(JSON.stringify(state.edits)),aliases:JSON.parse(JSON.stringify(state.aliases)),sectionRules:JSON.parse(JSON.stringify(state.sectionRules)),seeAlso:JSON.parse(JSON.stringify(state.seeAlso)),videoDescRules:JSON.parse(JSON.stringify(state.videoDescRules)),videoDescDesign:JSON.parse(JSON.stringify(state.videoDescDesign))});localStorage.setItem('jem_p',JSON.stringify(state.presets));buildPresetSel();}
+function loadPreset(idx){const p=state.presets[parseInt(idx)];if(!p)return;state.rules=JSON.parse(JSON.stringify(p.rules));state.design=JSON.parse(JSON.stringify(p.design));state.edits=JSON.parse(JSON.stringify(p.edits));state.aliases=JSON.parse(JSON.stringify(p.aliases||[]));state.sectionRules=JSON.parse(JSON.stringify(p.sectionRules||{people:[],topics:[],dates:[],history:[],locations:[],nigunim:[],orgs:[]}));state.seeAlso=JSON.parse(JSON.stringify(p.seeAlso||{}));if(p.videoDescRules)state.videoDescRules=JSON.parse(JSON.stringify(p.videoDescRules));if(p.videoDescDesign)state.videoDescDesign=JSON.parse(JSON.stringify(p.videoDescDesign));buildSegChecklist();buildSegOrder();buildTypoPanel();buildAliasList();buildSectionRulesList();buildSeeAlsoPanel();render();}
+function exportPreset(){const a=document.createElement('a');a.href='data:application/json,'+encodeURIComponent(JSON.stringify({rules:state.rules,design:state.design,edits:state.edits,aliases:state.aliases,sectionRules:state.sectionRules,seeAlso:state.seeAlso,videoDescRules:state.videoDescRules,videoDescDesign:state.videoDescDesign},null,2));a.download='jem-preset.json';a.click();}
+function importPreset(){const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const p=JSON.parse(ev.target.result);state.rules={...state.rules,...p.rules};state.design={...state.design,...p.design};state.edits=p.edits||{};state.aliases=p.aliases||[];state.sectionRules=p.sectionRules||{people:[],topics:[],dates:[],history:[],locations:[],nigunim:[],orgs:[]};state.seeAlso=p.seeAlso||{};if(p.videoDescRules)state.videoDescRules={...state.videoDescRules,...p.videoDescRules};if(p.videoDescDesign)state.videoDescDesign={...state.videoDescDesign,...p.videoDescDesign};buildSegChecklist();buildSegOrder();buildTypoPanel();buildAliasList();buildSectionRulesList();buildSeeAlsoPanel();render();}catch{alert('Invalid preset.');}};r.readAsText(f);};i.click();}
 function resetAll(){if(!confirm('Reset everything?'))return;location.reload();}
 function buildPresetSel(){const s=document.getElementById('preset-sel');s.innerHTML=state.presets.map((p,i)=>`<option value="${i}">${p.name}</option>`).join('')||'<option value="">No presets</option>';}
 
