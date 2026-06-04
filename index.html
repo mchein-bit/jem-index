@@ -1800,37 +1800,17 @@ function _doRender(){
   // Build entry HTML strings once
   const htmls=entries.map(e=>buildEntry(e,r,d,isEd,isPeople));
 
-  // --- PASS 1: measure every entry in a real off-screen column ---
-  // Use an absolutely positioned off-screen div that matches the exact column
-  // dimensions including overflow:hidden so measurements are accurate
-  let probe=document.getElementById('_probe');
-  if(!probe){
-    probe=document.createElement('div');
-    probe.id='_probe';
-    probe.style.cssText=[
-      'position:absolute','top:0','left:-9999px','z-index:-1',
-      'overflow:hidden','visibility:hidden','pointer-events:none'
-    ].join(';');
-    document.body.appendChild(probe);
-  }
-  probe.style.width=colW+'px';
-  // Remove height constraint so we get true content height
-  probe.style.height='';
-
-  const heights=htmls.map(h=>{
-    probe.innerHTML=h;
-    // Use getBoundingClientRect for accurate sub-pixel height
-    const child=probe.firstElementChild;
-    return child ? child.getBoundingClientRect().height : probe.scrollHeight;
-  });
-  probe.innerHTML='';
+  // --- PASS 1: measure all entries in one real off-screen column ---
+  // Render everything at column width so offsetHeight is accurate.
+  const tmpCol=document.createElement('div');
+  tmpCol.style.cssText=`position:absolute;left:-9999px;top:0;width:${colW}px;visibility:hidden`;
+  tmpCol.innerHTML=htmls.join('');
+  document.body.appendChild(tmpCol);
+  const heights=Array.from(tmpCol.querySelectorAll('.entry')).map(el=>el.offsetHeight);
+  document.body.removeChild(tmpCol);
 
   // --- PASS 2: greedy column packing ---
-  // We intentionally do NOT subtract the first-entry top margin.
-  // Instead, the column div uses padding-top:0 and the entry margin is
-  // accounted for in the measured height directly.
-  // Use a small safety buffer (4px) to avoid off-by-one overflow.
-  const BUFFER=4;
+  const BUFFER=2;
   const colCapacity=cH-BUFFER;
 
   const pages=[];
