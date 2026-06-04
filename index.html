@@ -140,14 +140,17 @@ body{font-family:var(--ui);background:var(--bg);color:var(--ink);height:100vh;di
     <button id="mode-pr" onclick="setMode('print')">Print</button>
   </div>
   <button id="btn-export" onclick="exportPDF()">Export PDF</button>
-  <input id="tb-username" type="text" placeholder="Your name" style="width:100px;font-size:11px;padding:2px 6px;border:1px solid var(--sbb);border-radius:4px;background:var(--bg);color:var(--fg)" oninput="localStorage.setItem('jem_username',this.value)">
-  <button id="btn-share" onclick="saveSharedSettings()" style="font-size:11px;padding:3px 8px;border:1px solid var(--sbb);border-radius:4px;background:var(--bg);color:var(--fg);cursor:pointer">💾 Save &amp; Share</button>
-  <span id="share-status" style="font-size:10px;color:var(--muted)"></span>
 </div>
 <div id="main">
 <div id="sidebar">
 
-<details class="sb-sec" open><summary>Data</summary><div class="sb-body">
+<!-- Video Descriptions note — shown only when on that tab -->
+<div id="vd-sidebar-note" style="display:none;padding:10px 13px;background:#eeedf8;border-bottom:1px solid var(--sbb)">
+  <div style="font-size:11px;color:var(--accent);font-weight:500;margin-bottom:3px">Video Descriptions</div>
+  <div style="font-size:11px;color:var(--muted);line-height:1.5">Appendix section. Use the Design controls below to adjust the page layout and typography.</div>
+</div>
+
+<details class="sb-sec" id="data-panel" open><summary>Data</summary><div class="sb-body">
   <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:6px">Upload a CSV export for the current section. Replaces demo data for that section only. Other sections keep their data.</div>
 
   <div class="cgl">Current section</div>
@@ -175,20 +178,20 @@ body{font-family:var(--ui);background:var(--bg);color:var(--ink);height:100vh;di
   <div id="data-error" style="display:none;font-size:10px;color:var(--danger);margin-top:4px;line-height:1.4"></div>
 </div></details>
 
-<div class="sb-body">
+<details class="sb-sec" id="rules-entries" open><summary>Rules — Entries</summary><div class="sb-body">
   <div class="tr"><label>Show empty entries</label><button class="tog on" id="tog-ee" onclick="toggleRule('showEmptyEntries',this)"></button></div>
   <div class="cr"><label>Min segment types</label><input type="number" value="1" min="1" max="6" oninput="setRule('minSegmentTypes',parseInt(this.value)||1)"></div>
   <div id="sec-note-box"></div>
 </div></details>
 
-<details class="sb-sec" open><summary>Rules — Segment Types</summary><div class="sb-body">
+<details class="sb-sec" id="rules-segtypes" open><summary>Rules — Segment Types</summary><div class="sb-body">
   <div class="cgl">Show / hide</div>
   <div class="seg-list" id="seg-checklist"></div>
   <div class="cgl" style="margin-top:5px">Order</div>
   <div id="seg-order"></div>
 </div></details>
 
-<details class="sb-sec" open><summary>Rules — Description Lines</summary><div class="sb-body">
+<details class="sb-sec" id="rules-lines" open><summary>Rules — Description Lines</summary><div class="sb-body">
   <div class="cr"><label>Top N per segment</label><input type="number" id="r-topn" placeholder="∞" min="1" oninput="setRule('topN',this.value?parseInt(this.value):null)"></div>
   <div class="cr"><label>Min relevancy</label><select onchange="setRule('minRelevancy',parseInt(this.value))"><option value="1" selected>1 (all)</option><option value="2">2+</option><option value="3">3 only</option></select></div>
   <div class="tr"><label>Conditional suppress rel 1</label><button class="tog" onclick="toggleRule('condSuppress',this)"></button></div>
@@ -197,7 +200,7 @@ body{font-family:var(--ui);background:var(--bg);color:var(--ink);height:100vh;di
   <div class="tr"><label>Show relationship tag</label><button class="tog on" onclick="toggleRule('showRelTag',this)"></button></div>
 </div></details>
 
-<details class="sb-sec"><summary>Rules — References</summary><div class="sb-body">
+<details class="sb-sec" id="rules-refs"><summary>Rules — References</summary><div class="sb-body">
   <div class="tr"><label>Apply code transform (TM→T etc.)</label><button class="tog on" onclick="toggleRule('applyTransform',this)"></button></div>
   <div class="cr"><label>Max refs per line</label><input type="number" placeholder="∞" min="1" oninput="setRule('maxRefs',this.value?parseInt(this.value):null)"></div>
   <div class="cr"><label>Bold threshold</label><select onchange="setRule('boldThreshold',parseInt(this.value))"><option value="3" selected>Relevancy 3</option><option value="2">Relevancy 2+</option></select></div>
@@ -238,6 +241,13 @@ body{font-family:var(--ui);background:var(--bg);color:var(--ink);height:100vh;di
   <div class="cr"><label>Ref alignment</label><select onchange="setRule('refAlign',this.value)"><option value="pushed" selected>Pushed right</option><option value="inline">Inline</option></select></div>
   <div class="cr"><label>Ref separator</label><input type="text" value=" , " oninput="setRule('refSep',this.value)" style="width:55px"></div>
   <div class="cr"><label>Rel tag style</label><select onchange="setRule('relTagStyle',this.value)"><option value="brackets" selected>[ brackets ]</option><option value="parens">( parens )</option><option value="plain">plain</option></select></div>
+  <!-- Photo controls — shown only on Video Descriptions tab -->
+  <div id="photo-controls" style="display:none;padding-top:6px;border-top:1px solid var(--sbb);margin-top:4px">
+    <div class="cgl">Video Photos</div>
+    <div class="tr"><label>Show photo placeholders</label><button class="tog on" id="tog-photos" onclick="toggleRule('showVideoPhotos',this)"></button></div>
+    <div class="cr"><label>Photo width (px)</label><input type="number" value="72" min="40" max="150" oninput="setRule('videoPhotoW',parseInt(this.value)||72)"></div>
+    <div class="cr"><label>Photo height (px)</label><input type="number" value="54" min="30" max="120" oninput="setRule('videoPhotoH',parseInt(this.value)||54)"></div>
+  </div>
 </div></details>
 
 <details class="sb-sec" id="sec-rules-panel" open><summary>Section Rules — <span id="sec-rules-label" style="text-transform:none;letter-spacing:0;font-weight:600;color:var(--accent)">People</span></summary><div class="sb-body">
@@ -251,7 +261,7 @@ body{font-family:var(--ui);background:var(--bg);color:var(--ink);height:100vh;di
 </div></details>
 
 
-<details class="sb-sec"><summary>See Also — <span id="see-also-label" style="text-transform:none;letter-spacing:0;font-weight:600;color:var(--accent)">People</span></summary><div class="sb-body">
+<details class="sb-sec" id="see-also-panel"><summary>See Also — <span id="see-also-label" style="text-transform:none;letter-spacing:0;font-weight:600;color:var(--accent)">People</span></summary><div class="sb-body">
   <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:6px">Add cross-references to an entry. Appears under the heading as "See Also: X, Y, Z". Section-specific.</div>
 
   <div class="cgl">Entry</div>
@@ -273,7 +283,7 @@ body{font-family:var(--ui);background:var(--bg);color:var(--ink);height:100vh;di
   </div>
 </div></details>
 
-<details class="sb-sec"><summary>Aliases</summary><div class="sb-body">
+<details class="sb-sec" id="aliases-panel"><summary>Aliases</summary><div class="sb-body">
   <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:6px">Add alternate names that appear as stub entries pointing to the canonical entry. Shown in the current section only.</div>
   <div id="alias-list" style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px"></div>
   <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
@@ -308,13 +318,14 @@ body{font-family:var(--ui);background:var(--bg);color:var(--ink);height:100vh;di
 <script>
 // -- SECTIONS --
 const SECTIONS = [
-  { id:'people',   label:'People',    count:1865 },
-  { id:'topics',   label:'Topics',    count:1006 },
-  { id:'dates',    label:'Dates',     count:62   },
-  { id:'history',  label:'History',   count:42   },
-  { id:'locations',label:'Locations', count:289  },
-  { id:'nigunim',  label:'Nigunim',   count:105  },
-  { id:'orgs',     label:'Orgs & Books', count:264 },
+  { id:'people',    label:'People',             count:1865 },
+  { id:'topics',    label:'Topics',             count:1006 },
+  { id:'dates',     label:'Dates',              count:62   },
+  { id:'history',   label:'History',            count:42   },
+  { id:'locations', label:'Locations',          count:289  },
+  { id:'nigunim',   label:'Nigunim',            count:105  },
+  { id:'orgs',      label:'Orgs & Books',       count:264  },
+  { id:'videodesc', label:'Video Descriptions', count:null },
 ];
 
 // Per-section default rule overrides
@@ -1329,6 +1340,7 @@ let state = {
     emptyBehavior:'flag', filmUnknown:'placeholder',
     refSep:' , ', refAlign:'pushed', relTagStyle:'brackets', entryDivider:'none',
     columns:2, columnGap:0.25, columnRule:false,
+    showVideoPhotos:true, videoPhotoW:72, videoPhotoH:54,
   },
   design:{
     pageW:7,pageH:10,mgT:.75,mgB:.75,mgI:.875,mgO:.625,
@@ -1541,6 +1553,122 @@ function updateDataSectionStatus(sectionId){
   if(statusEl)statusEl.textContent=hasLoaded?'real data':'demo data';
   if(statusEl)statusEl.style.color=hasLoaded?'#2d6a2d':'var(--muted)';
   if(clearBtn)clearBtn.style.display=hasLoaded?'block':'none';
+}
+
+// -- VIDEO DESCRIPTIONS DATA --
+const VIDEOS_DATA = [
+  // ADDRESSES
+  {ref:'A276',type:'A',title:'Free to Serve',date:'March 2, 1980',hebrew:'14 Adar, 5740',duration:'7:43',occasion:'Farbrengen',summary:'Most Jews today live in countries without persecution, presenting a new challenge: parents want their children to be accepted by non-Jewish neighbors. They may instruct their children to hide their Jewish identity. After Purim, surrounding nations admired the Jews precisely because they proudly upheld their way of life — not only under persecution, but also under freedom. They proved that the Jews are "the nation led by Mordechai" — who does not bend nor bow.'},
+  {ref:'A680',type:'A',title:'The Source of Might',date:'February 18, 1981',hebrew:'14 Adar I, 5741',duration:'7:31',occasion:"Children's Rally",summary:'When a Jew strives to grow in Torah and mitzvot, the evil inclination approaches in two ways: as an open enemy, or as an avenger hiding evil intentions in a veil of concern. When Jewish children stand with established strength, firmly resolving to live a life of uncompromised Torah and mitzvot, they bring success in the battle against evil.'},
+  {ref:'A735',type:'A',title:'Taming the Ox',date:'December 2, 1985',hebrew:'19 Kislev, 5746',duration:'6:33',occasion:'Farbrengen',summary:'In Talmudic law, when an ox shows repeated aggression, it loses all legal leniency. Yet through minor behavioral changes, its "tame" status can be restored. Every person possesses an inner ox — an animal soul. The smallest sincere movement of return to G-d restores spiritual wholeness. Of such a person the Torah declares: even the complete tzaddik cannot reach his exalted level.'},
+  {ref:'A761',type:'A',title:'Let G-d Do the Rest',date:'October 11, 1985',hebrew:'26 Tishrei, 5746',duration:'5:59',occasion:'General Audience',summary:'The Variable Offering adjusts to financial ability, yet Maimonides describes a poor person who pledges to bring the offering of someone wealthier. Jewish law only obligates according to means — but if he pledged to bring it, he will be given the means to fulfill his promise. When a Jew commits to doing something positive, resolving to help another despite limitations, G-d will help him honor his pledge.'},
+  {ref:'A760',type:'A',title:'Living with Moshiach',date:'October 10, 1985',hebrew:'25 Tishrei, 5746',duration:'4:50',occasion:'Farbrengen',summary:'Maimonides details who ministered each Red Heifer, writing that the tenth will be prepared by Mashiach. Why insert a prayer into a legal text? Because this itself is law: whenever a Jew mentions Mashiach, he must immediately add hope and prayer for his arrival. Mashiach is not a distant concept but a present reality to be anticipated daily.'},
+  {ref:'A188',type:'A',title:'Divine Miracle Openly Seen',date:'June 1967',hebrew:'Sivan, 5727',duration:'9:15',occasion:'Farbrengen',summary:'The Six Day War was a miracle openly visible to all. In just six days, against overwhelming odds, Israel achieved a victory that military analysts could not explain. The Rebbe spoke of this as divine providence made manifest — a moment when G-d\'s hand was visible to believer and skeptic alike, obligating a recognition of the miracle and gratitude.'},
+  {ref:'A60',type:'A',title:'Immersed in Holiness',date:'October 1962',hebrew:'Tishrei, 5723',duration:'8:20',occasion:'Farbrengen',summary:'The month of Tishrei is a time of total immersion in holiness. From Rosh Hashana through Shemini Atzeret, each day carries its own spiritual elevation. The Rebbe explains how the cumulative effect of these days transforms the person — not just for the holiday season but for the entire year that follows.'},
+  {ref:'A64',type:'A',title:'Infiniteness In Creation',date:'1962',hebrew:'5722',duration:'6:45',occasion:'Farbrengen',summary:'The infinity of G-d finds expression within the finite world of creation. The Rebbe elaborates on how every created thing carries within it a spark of divine infiniteness — and how recognizing this transforms one\'s relationship with the world from mundane to sacred.'},
+  // TIMELESS MOMENTS
+  {ref:'TM178',type:'TM',title:'Rebbe Addresses Tishrei Guests',date:'September 1988',hebrew:'Tishrei, 5749',duration:'12:20',occasion:'Farewell audience',summary:'The Rebbe bids farewell to thousands of Chassidim who came to spend Tishrei in his presence. In a moving address, the Rebbe speaks of the spiritual elevation that comes from spending the High Holidays in 770, and charges each guest with the mission of spreading that energy throughout the year ahead.'},
+  {ref:'TM19',type:'TM',title:'Rebbe Davening Shacharis',date:'circa 1980',hebrew:'',duration:'8:45',occasion:'Morning prayers',summary:'A rare and intimate glimpse of the Rebbe during morning prayers. The focus, intensity, and devotion visible in these moments offer a window into the Rebbe\'s personal service of G-d — a model of how prayer can be both deeply personal and a vehicle for connection to the infinite.'},
+  {ref:'TM44',type:'TM',title:'Sunday Dollars',date:'1986–1992',hebrew:'',duration:'25:00',occasion:'Dollar distribution',summary:'The Rebbe distributes dollar bills to thousands of people every Sunday, each receiving a blessing and a word of encouragement. The dollar is meant to be given to charity, serving as a vehicle for blessing. This weekly tradition drew Jews and non-Jews from around the world to receive the Rebbe\'s personal attention.'},
+  {ref:'TM422',type:'TM',title:'Chassidim Receive Rebbe\'s Lulav',date:'October 1987',hebrew:'Sukkot, 5748',duration:'18:30',occasion:'Sukkot',summary:'The annual tradition of Chassidim taking the Rebbe\'s four species on Sukkot. Thousands line up to shake the Rebbe\'s lulav and etrog, receiving a blessing for the new year. The Rebbe\'s joy during this ceremony was palpable, expressing the deepest meaning of the holiday commandment.'},
+  {ref:'TM579',type:'TM',title:'Farewell Farbrengen',date:'October 1989',hebrew:'Tishrei, 5750',duration:'32:00',occasion:'Farbrengen',summary:'The culminating farbrengen of the Tishrei season, as the Rebbe bids farewell to the thousands who gathered from around the world. The Rebbe\'s words carry the weight of a year\'s spiritual work and charge his followers with the mission of carrying that energy into their daily lives.'},
+  {ref:'TM751',type:'TM',title:'Fourth Yahrtzeit of Rebbetzin',date:'February 1992',hebrew:'22 Shevat, 5752',duration:'14:30',occasion:'Yahrtzeit',summary:'Marking the fourth Yahrtzeit of the Rebbetzin, the Rebbe addresses her legacy and her unique role in the Chabad movement. The Rebbetzin\'s quiet strength, scholarship, and dedication to her husband\'s mission are explored through personal recollections and chassidic teaching.'},
+  // CONVERSATIONS
+  {ref:'C13',type:'C',title:'Chanukah Connection to Creation',date:'December 1971',hebrew:'Kislev, 5732',duration:'6:15',occasion:'Private audience',summary:'A visitor asks the Rebbe about the connection between Chanukah and the creation of the world. The Rebbe explains that just as creation was the first revelation of divine light in darkness, Chanukah celebrates the power of a small light to overcome great darkness — the same principle operating at different scales of existence.'},
+  {ref:'C111',type:'C',title:'Designate Day for Yahrzeit',date:'1977',hebrew:'',duration:'5:45',occasion:'Correspondence',summary:'The Rebbe responds to a community\'s question about designating a communal day of remembrance for Holocaust victims. The Rebbe\'s nuanced response weighs halachic considerations against the psychological and communal needs of survivors, arriving at guidance that honors both dimensions.'},
+  {ref:'C700',type:'C',title:'Condolences to Rebbe',date:'February 1988',hebrew:'22 Shevat, 5748',duration:'8:10',occasion:'Condolence visit',summary:'Community leaders come to offer condolences following the passing of the Rebbetzin. The Rebbe, in receiving these visitors, speaks movingly about the nature of loss and the continuity of mission — even in grief, the work must go on.'},
+  {ref:'C88',type:'C',title:'Rebbe Encourages Young Child',date:'1975',hebrew:'',duration:'4:20',occasion:'Private audience',summary:'A young child is brought to the Rebbe, and the encounter becomes a memorable lesson in the power of charity and Jewish education. The Rebbe\'s warmth with children was legendary — in this case transforming a brief meeting into a lifelong commitment.'},
+  // MY ENCOUNTER
+  {ref:'ME710',type:'ME',title:'In Six Days',date:'1987',hebrew:'',duration:'14:30',occasion:'Interview',summary:'A scientist describes his encounter with the Rebbe and how their conversation transformed his understanding of science and Torah. The Rebbe explained how the six days of creation are not in conflict with scientific observation but rather describe the spiritual framework underlying physical reality — a synthesis that satisfied both his scientific and spiritual instincts.'},
+  {ref:'ME160',type:'ME',title:'Torah Blueprint of the World',date:'1974',hebrew:'',duration:'11:20',occasion:'Interview',summary:'A philosopher recounts a profound conversation with the Rebbe about the Torah as the blueprint of creation. The Rebbe elaborated on how G-d looked into the Torah and created the world — meaning that every physical phenomenon has a spiritual root in Torah, and that understanding Torah is ultimately understanding the deepest structure of reality.'},
+  {ref:'ME255',type:'ME',title:'Compensation After the Holocaust',date:'1982',hebrew:'',duration:'16:40',occasion:'Interview',summary:'A Holocaust survivor shares his encounter with the Rebbe and the Rebbe\'s response to questions of theodicy — how a loving G-d could allow such suffering. The Rebbe\'s response, both compassionate and intellectually rigorous, transformed the survivor\'s relationship with faith and gave him a framework for understanding his own survival as mission.'},
+  {ref:'ME646',type:'ME',title:'Dealing with Difficult Aftermath',date:'1985',hebrew:'',duration:'13:15',occasion:'Interview',summary:'A social worker describes the Rebbe\'s guidance in helping Holocaust survivors rebuild their lives. The Rebbe emphasized that survival itself was a mission — each survivor carried responsibility to testify and to live fully. This reframing of survival as sacred obligation gave many survivors renewed purpose.'},
+  {ref:'ME631',type:'ME',title:'Elie Wiesel and the Rebbe',date:'1983',hebrew:'',duration:'20:10',occasion:'Interview',summary:'Elie Wiesel recounts his complex and profound relationship with the Rebbe, including their conversations about faith after the Holocaust, the role of Jewish literature, and the obligation to remember and transmit the experience to future generations who did not live through it.'},
+  {ref:'ME674',type:'ME',title:'Music En Route to Gas Chambers',date:'1986',hebrew:'',duration:'17:25',occasion:'Interview',summary:'A survivor describes the haunting experience of hearing Jews sing and play music as they were led to their deaths — and the Rebbe\'s interpretation of this act as ultimate defiance and faith, choosing spiritual dignity in the face of physical destruction. The music was not escape but affirmation.'},
+  {ref:'ME585',type:'ME',title:'Parents Celebrated at Home',date:'1979',hebrew:'',duration:'9:15',occasion:'Interview',summary:'A family member recalls how the Rebbe\'s parents celebrated the Rebbe-Rebbetzin wedding from afar, unable to attend. They marked the occasion at home with tremendous joy, understanding the historic significance of the union and the role it would play in the history of Chabad leadership.'},
+  {ref:'ME801',type:'ME',title:'Generals Consult with Rebbe',date:'1967',hebrew:'',duration:'18:45',occasion:'Interview',summary:'Israeli generals describe seeking the Rebbe\'s guidance in the days before and during the Six Day War. The Rebbe\'s certainty of victory — expressed publicly at a time when the military situation appeared dire — and his specific strategic guidance proved both spiritually and practically significant.'},
+  // SHORT FILMS
+  {ref:'SF999',type:'SF',title:'Basis for Israel Ownership',date:'1991',hebrew:'',duration:'18:45',occasion:'Documentary',summary:'This film examines the Rebbe\'s position on Israel\'s right to the land, rooted in the biblical account of creation. The Torah begins with creation to establish that G-d created the world and gave the Land of Israel to the Jewish people — this forms the ultimate basis for Jewish ownership, transcending all political arguments.'},
+  {ref:'SF946',type:'SF',title:'In 6 Days — Teach Torah View',date:'1989',hebrew:'',duration:'9:30',occasion:'Educational',summary:'An educational film presenting the Torah perspective on the six days of creation, contrasting it with secular scientific theories. Features rabbinical scholars explaining how the Torah view enriches rather than contradicts scientific inquiry, offering a synthesis that honors both traditions of knowledge.'},
+  {ref:'SF980',type:'SF',title:'Escape from France',date:'1941',hebrew:'',duration:'22:30',occasion:'Historical documentary',summary:'Documents the Rebbe\'s dramatic escape from Nazi-occupied France in 1941, following a harrowing journey through occupied territories. The film traces the route, the people who helped, and the miracles that occurred along the way — a journey that brought one of the twentieth century\'s greatest Jewish leaders to American shores.'},
+  {ref:'SF874',type:'SF',title:'Rebbe Arrives in America',date:'1941',hebrew:'',duration:'15:45',occasion:'Historical documentary',summary:'The story of the Rebbe\'s arrival in America in 1941 and the transformation that followed. From the first days in New York, the Rebbe began building what would become the global Chabad movement, seeing in America not exile but opportunity — a new world ready for Jewish renewal.'},
+  {ref:'SF913',type:'SF',title:"Rebbe's Response to the Cold War",date:'1961',hebrew:'',duration:'11:20',occasion:'Documentary',summary:'Documents the Rebbe\'s response to Cold War tensions and his guidance to Jewish communities on both sides of the Iron Curtain. The Rebbe\'s message: spiritual strength is the ultimate defense. His letters to Jews in the Soviet Union, smuggled past censors, sustained entire underground communities.'},
+  {ref:'SF442',type:'SF',title:'Rebbe Predicts Victory',date:'June 1967',hebrew:'',duration:'8:30',occasion:'Documentary',summary:'In the tense days before the Six Day War, the Rebbe publicly predicted an Israeli victory when the military situation appeared dire. This film documents those remarkable days and the Rebbe\'s unshakeable certainty — a certainty that proved prophetic and transformed how his followers understood the relationship between faith and history.'},
+  {ref:'SF1035',type:'SF',title:"Jewish Soldier's Mission",date:'1953',hebrew:'',duration:'12:40',occasion:'Documentary',summary:'The story of a Jewish soldier during the Korean War who sought the Rebbe\'s guidance on maintaining Jewish practice while serving. His story became a template for Jewish soldiers worldwide — demonstrating that one can serve one\'s country while maintaining complete Torah observance, and that the two obligations strengthen rather than contradict each other.'},
+  {ref:'SF572',type:'SF',title:'Call for Revolution',date:'1970',hebrew:'',duration:'14:20',occasion:'Interview',summary:'During the height of the Vietnam War protests, a university student asked the Rebbe about calls for revolution. The Rebbe responded that the true revolution is an inner one — changing oneself is the beginning of changing the world. External revolution without internal transformation merely replaces one set of problems with another.'},
+];
+
+// Group videos by type for rendering
+const VIDEO_TYPE_ORDER = ['A','TM','C','ME','SF','F'];
+const VIDEO_TYPE_LABELS = {A:'Addresses',TM:'Timeless Moments',C:'Conversations',ME:'My Encounter',SF:'Short Films',F:'Films'};
+
+function buildVideoDescPage(){
+  const d=effectiveDesign('videodesc');
+  const r=effectiveRules('videodesc');
+  const isEd=state.mode==='editorial';
+
+  // Group by type
+  const grouped={};
+  for(const t of VIDEO_TYPE_ORDER) grouped[t]=[];
+  for(const v of VIDEOS_DATA){
+    if(grouped[v.type]) grouped[v.type].push(v);
+  }
+
+  const tEntry=d.typo.entry;
+  const tSeg=d.typo.segtype;
+  const tDesc=d.typo.description;
+  const tRef=d.typo.refHigh;
+
+  // Build HTML for each video entry
+  function videoEntryHtml(v){
+    const refStyle=`font-family:${tRef.fam};font-size:${tRef.sz}px;font-weight:700;color:${tRef.cl};text-decoration:underline;`;
+    const titleStyle=`font-family:${tEntry.fam};font-size:${tEntry.sz}px;font-weight:${tEntry.wt};color:${tEntry.cl};`;
+    const metaStyle=`font-family:${tSeg.fam};font-size:${tSeg.sz}px;font-style:italic;color:${tSeg.cl};letter-spacing:${tSeg.ls};margin-bottom:2px;`;
+    const summaryStyle=`font-family:${tDesc.fam};font-size:${tDesc.sz}px;color:${tDesc.cl};line-height:${d.lineH};margin-top:2px;`;
+    const meta=[v.date,v.hebrew,v.duration,v.occasion].filter(Boolean).join(' · ');
+
+    const showPhoto = v.showPhoto !== false && state.rules.showVideoPhotos !== false;
+    const photoW = state.rules.videoPhotoW || 72;
+    const photoH = state.rules.videoPhotoH || 54;
+
+    const photoHtml = showPhoto ? `<div style="
+      float:left;
+      width:${photoW}px;height:${photoH}px;
+      margin-right:7px;margin-bottom:3px;
+      background:#ddd8ce;
+      border:0.5px solid #c8c4bc;
+      border-radius:1px;
+      display:flex;align-items:center;justify-content:center;
+      flex-shrink:0;
+      overflow:hidden;
+    "><span style="font-family:${tSeg.fam};font-size:8px;color:#aaa;text-align:center;line-height:1.3;padding:4px;">${v.ref}</span></div>` : '';
+
+    return `<div class="vd-entry" style="margin-top:${d.entryMT};margin-bottom:${d.entryMB};overflow:hidden;">
+      ${photoHtml}
+      <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:1px;flex-wrap:wrap;">
+        <span style="${refStyle}">${v.ref}</span>
+        <span style="${titleStyle};font-size:${tEntry.sz-1}px">${v.title}</span>
+      </div>
+      ${meta?`<div style="${metaStyle}">${meta}</div>`:''}
+      <div style="${summaryStyle}">${v.summary}</div>
+      <div style="clear:both"></div>
+    </div>`;
+  }
+
+  // Build group HTML
+  const htmlGroups=[];
+  for(const t of VIDEO_TYPE_ORDER){
+    const vids=grouped[t];
+    if(!vids.length) continue;
+    const labelStyle=`font-family:${tSeg.fam};font-size:${tSeg.sz+1}px;font-weight:600;font-style:italic;letter-spacing:${tSeg.ls};color:${tSeg.cl};text-transform:uppercase;margin-top:${d.segMT};margin-bottom:${d.segMB};padding-bottom:2px;border-bottom:0.5px solid #ccc;`;
+    const groupHtml=`<div class="vd-group">
+      <div style="${labelStyle}">${VIDEO_TYPE_LABELS[t]}</div>
+      ${vids.map(v=>videoEntryHtml(v)).join('')}
+    </div>`;
+    htmlGroups.push(groupHtml);
+  }
+
+  return htmlGroups;
 }
 
 // -- RULES ENGINE --
@@ -1770,17 +1898,18 @@ function buildEntry(e,r,d,isEd,isPeople){
 }
 
 // -- RENDER --
-let _renderTimer=null;
-let _reflowDone=false;
+let _renderPending=false;
 function render(){
-  if(_renderTimer)clearTimeout(_renderTimer);
-  _reflowDone=false;
-  _renderTimer=setTimeout(()=>{ _doRender(); },50);
+  // Debounce + defer past font loading
+  if(_renderPending)return;
+  _renderPending=true;
+  requestAnimationFrame(()=>{_renderPending=false;_doRender();});
 }
 
 function _doRender(){
-  const preview=document.getElementById('preview-area');
-  const savedScroll=preview.scrollTop;
+  // Video Descriptions has its own render path
+  if(activeSection==='videodesc'){ _doRenderVideoDesc(); return; }
+
   const r=effectiveRules(activeSection),d=effectiveDesign(activeSection);
   const isEd=state.mode==='editorial';
   const isPeople=activeSection==='people';
@@ -1798,22 +1927,43 @@ function _doRender(){
   const totalColSpace=pxW-pxMI-pxMO-(r.columns-1)*colGap;
   const colW=Math.floor(totalColSpace/r.columns);
 
+  const preview=document.getElementById('preview-area');
   preview.querySelectorAll('.book-page').forEach(p=>p.remove());
 
   // Build entry HTML strings once
   const htmls=entries.map(e=>buildEntry(e,r,d,isEd,isPeople));
 
-  // --- PASS 1: measure all entries in one real off-screen column ---
-  // Render everything at column width so offsetHeight is accurate.
-  const tmpCol=document.createElement('div');
-  tmpCol.style.cssText=`position:absolute;left:-9999px;top:0;width:${colW}px;visibility:hidden`;
-  tmpCol.innerHTML=htmls.join('');
-  document.body.appendChild(tmpCol);
-  const heights=Array.from(tmpCol.querySelectorAll('.entry')).map(el=>el.offsetHeight);
-  document.body.removeChild(tmpCol);
+  // --- PASS 1: measure every entry in a real off-screen column ---
+  // Use an absolutely positioned off-screen div that matches the exact column
+  // dimensions including overflow:hidden so measurements are accurate
+  let probe=document.getElementById('_probe');
+  if(!probe){
+    probe=document.createElement('div');
+    probe.id='_probe';
+    probe.style.cssText=[
+      'position:absolute','top:0','left:-9999px','z-index:-1',
+      'overflow:hidden','visibility:hidden','pointer-events:none'
+    ].join(';');
+    document.body.appendChild(probe);
+  }
+  probe.style.width=colW+'px';
+  // Remove height constraint so we get true content height
+  probe.style.height='';
+
+  const heights=htmls.map(h=>{
+    probe.innerHTML=h;
+    // Use getBoundingClientRect for accurate sub-pixel height
+    const child=probe.firstElementChild;
+    return child ? child.getBoundingClientRect().height : probe.scrollHeight;
+  });
+  probe.innerHTML='';
 
   // --- PASS 2: greedy column packing ---
-  const BUFFER=2;
+  // We intentionally do NOT subtract the first-entry top margin.
+  // Instead, the column div uses padding-top:0 and the entry margin is
+  // accounted for in the measured height directly.
+  // Use a small safety buffer (4px) to avoid off-by-one overflow.
+  const BUFFER=4;
   const colCapacity=cH-BUFFER;
 
   const pages=[];
@@ -1867,20 +2017,102 @@ function _doRender(){
     page.appendChild(pgN);
     preview.appendChild(page);
   });
-  preview.scrollTop=savedScroll;
 
-  // --- PASS 4: post-render correction (at most once per render cycle) ---
+  // --- PASS 4: post-render correction ---
+  // After DOM is painted, check if any column is actually overflowing
+  // and re-render if measurements were off (e.g. fonts just loaded)
   requestAnimationFrame(()=>{
-    if(_reflowDone) return;
     let needsReflow=false;
     preview.querySelectorAll('.book-col').forEach(colEl=>{
-      if(colEl.scrollHeight>colEl.clientHeight+20) needsReflow=true;
+      if(colEl.scrollHeight>colEl.clientHeight+8) needsReflow=true;
     });
-    if(needsReflow){ _reflowDone=true; _doRender(); }
+    if(needsReflow) _doRender();
   });
 }
 
-// -- SECTION NAV --
+function _doRenderVideoDesc(){
+  const d=effectiveDesign('videodesc');
+  const r=effectiveRules('videodesc');
+  const PX=96;
+  const pxW=d.pageW*PX, pxH=d.pageH*PX;
+  const pxMT=d.mgT*PX, pxMB=d.mgB*PX, pxMI=d.mgI*PX, pxMO=d.mgO*PX;
+  const cH=pxH-pxMT-pxMB;
+  const colGap=r.columnGap*PX;
+  const totalColSpace=pxW-pxMI-pxMO-(r.columns-1)*colGap;
+  const colW=Math.floor(totalColSpace/r.columns);
+
+  const preview=document.getElementById('preview-area');
+  const savedScroll=preview.scrollTop;
+  preview.querySelectorAll('.book-page').forEach(p=>p.remove());
+
+  // Get all group HTML blocks
+  const groupHtmls=buildVideoDescPage();
+
+  // Measure each group in probe
+  let probe=document.getElementById('_probe');
+  if(!probe){
+    probe=document.createElement('div');
+    probe.id='_probe';
+    probe.style.cssText='position:absolute;top:0;left:-9999px;z-index:-1;overflow:hidden;visibility:hidden;pointer-events:none;';
+    document.body.appendChild(probe);
+  }
+  probe.style.width=colW+'px';
+  probe.style.height='';
+
+  const heights=groupHtmls.map(h=>{
+    probe.innerHTML=h;
+    const child=probe.firstElementChild;
+    return child?child.getBoundingClientRect().height:probe.scrollHeight;
+  });
+  probe.innerHTML='';
+
+  // Pack groups into columns
+  const BUFFER=4;
+  const colCap=cH-BUFFER;
+  const pages=[];
+  let pg=[],col=[],colH=0;
+  function closeCol(){pg.push(col);col=[];colH=0;if(pg.length>=r.columns){pages.push(pg);pg=[];}}
+  for(let i=0;i<groupHtmls.length;i++){
+    const h=heights[i];
+    if(colH>0&&colH+h>colCap) closeCol();
+    col.push(i); colH+=h;
+  }
+  if(col.length) closeCol();
+  if(pg.length) pages.push(pg);
+
+  const colRuleStyle=r.columnRule?'border-left:0.5px solid #ccc;':'';
+
+  pages.forEach((pgCols,pi)=>{
+    const page=document.createElement('div');
+    page.className='book-page'+(state.mode==='editorial'?' editorial-mode':'');
+    page.style.cssText=[
+      `width:${pxW}px`,`height:${pxH}px`,
+      `padding:${pxMT}px ${pxMO}px ${pxMB}px ${pxMI}px`,
+      `gap:${colGap}px`,`align-items:flex-start`,
+      'position:relative','overflow:hidden'
+    ].join(';');
+
+    for(let ci=0;ci<r.columns;ci++){
+      const colEl=document.createElement('div');
+      colEl.className='book-col'+(r.columnRule&&ci>0?' col-rule':'');
+      colEl.style.cssText=`width:${colW}px;height:${cH}px;flex-shrink:0;overflow:hidden;${ci>0?colRuleStyle:''}`;
+      const idxs=pgCols[ci]||[];
+      colEl.innerHTML=idxs.map(i=>groupHtmls[i]).join('');
+      page.appendChild(colEl);
+    }
+
+    const pgN=document.createElement('div');
+    pgN.className='pg-num';
+    pgN.style.cssText=`bottom:${pxMB/3}px;font-family:${d.typo.description.fam};`;
+    pgN.textContent=pi+1;
+    page.appendChild(pgN);
+    preview.appendChild(page);
+  });
+
+  preview.scrollTop=savedScroll;
+}
+
+
 function buildSecTabs(){
   const el=document.getElementById('sec-tabs');
   el.innerHTML=SECTIONS.map(s=>`
@@ -1897,6 +2129,17 @@ function switchSection(id){
   buildSectionRulesList();
   buildSeeAlsoPanel();
   updateDataSectionStatus(id);
+  // Show/hide index-only sidebar panels
+  const indexOnly=['rules-entries','rules-segtypes','rules-lines','rules-refs','sec-rules-panel','aliases-panel','see-also-panel','data-panel'];
+  const isVD=id==='videodesc';
+  indexOnly.forEach(panelId=>{
+    const el=document.getElementById(panelId);
+    if(el) el.style.display=isVD?'none':'block';
+  });
+  const vdNote=document.getElementById('vd-sidebar-note');
+  if(vdNote) vdNote.style.display=isVD?'block':'none';
+  const photoCtrl=document.getElementById('photo-controls');
+  if(photoCtrl) photoCtrl.style.display=isVD?'block':'none';
   render();
 }
 function applySectionDefaults(id){
@@ -2325,64 +2568,14 @@ function importPreset(){const i=document.createElement('input');i.type='file';i.
 function resetAll(){if(!confirm('Reset everything?'))return;location.reload();}
 function buildPresetSel(){const s=document.getElementById('preset-sel');s.innerHTML=state.presets.map((p,i)=>`<option value="${i}">${p.name}</option>`).join('')||'<option value="">No presets</option>';}
 
-// -- SHARED SETTINGS --
-async function loadSharedSettings(){
-  try{
-    const res=await fetch('https://raw.githubusercontent.com/mchein-bit/jem-index/main/settings.json?t='+Date.now());
-    if(!res.ok)return;
-    const s=await res.json();
-    if(!s||(!s.rules&&!s.design))return;
-    if(s.rules&&Object.keys(s.rules).length)state.rules={...state.rules,...s.rules};
-    if(s.design&&Object.keys(s.design).length){
-      state.design={...state.design,...s.design};
-      if(s.design.typo)state.design.typo={...state.design.typo,...s.design.typo};
-    }
-    buildSegChecklist();buildSegOrder();buildTypoPanel();buildSectionRulesList();buildSeeAlsoPanel();updateDataSectionStatus(activeSection);
-    if(s.updatedAt||s.updatedBy){
-      const t=s.updatedAt?new Date(s.updatedAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
-      const by=s.updatedBy||'';
-      document.getElementById('share-status').textContent='Last saved: '+[t,by].filter(Boolean).join(' by ');
-    }
-  }catch(e){console.warn('loadSharedSettings:',e);}
-}
-
-async function saveSharedSettings(){
-  let token=localStorage.getItem('jem_gh_token');
-  if(!token){token=prompt('Enter your GitHub personal access token (needs repo write):');if(!token)return;localStorage.setItem('jem_gh_token',token);}
-  const username=(document.getElementById('tb-username').value||localStorage.getItem('jem_username')||'').trim();
-  const status=document.getElementById('share-status');
-  status.style.color='var(--muted)';
-  status.textContent='Saving…';
-  try{
-    const api='https://api.github.com/repos/mchein-bit/jem-index/contents/settings.json';
-    const getRes=await fetch(api,{headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json'}});
-    if(!getRes.ok)throw new Error('GET failed: '+getRes.status);
-    const meta=await getRes.json();
-    const sha=meta.sha;
-    const payload={version:1,updatedAt:new Date().toISOString(),updatedBy:username,rules:state.rules,design:state.design};
-    const content=btoa(unescape(encodeURIComponent(JSON.stringify(payload,null,2))));
-    const putRes=await fetch(api,{method:'PUT',headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json','Content-Type':'application/json'},body:JSON.stringify({message:'update settings',content,sha})});
-    if(!putRes.ok){const e=await putRes.json();throw new Error(e.message||putRes.status);}
-    const t=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-    status.style.color='green';
-    status.textContent='✓ Saved — refresh to sync';
-    document.getElementById('share-status').dataset.saved='Last saved: '+[t,username].filter(Boolean).join(' by ');
-  }catch(e){
-    status.style.color='red';
-    status.textContent=e.message||String(e);
-  }
-}
-
 // -- INIT --
 (function(){
   try{const s=localStorage.getItem('jem_p');if(s)state.presets=JSON.parse(s);}catch{}
   // Restore previously loaded CSV data
   try{const ld=localStorage.getItem('jem_loaded');if(ld)state.loadedData=JSON.parse(ld);}catch{}
-  // Restore username
-  const _un=localStorage.getItem('jem_username');if(_un)document.getElementById('tb-username').value=_un;
   buildSecTabs();buildSegChecklist();buildSegOrder();buildTypoPanel();buildPresetSel();buildAliasList();buildSectionRulesList();buildSeeAlsoPanel();updateDataSectionStatus(activeSection);
   updateSecNote(activeSection);
-  loadSharedSettings().then(()=>render()).catch(()=>render());
+  render();
   // Re-render once web fonts are loaded so measurements use correct font metrics
   if(document.fonts&&document.fonts.ready){
     document.fonts.ready.then(()=>{ _doRender(); });
