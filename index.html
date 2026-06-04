@@ -144,7 +144,35 @@ body{font-family:var(--ui);background:var(--bg);color:var(--ink);height:100vh;di
 <div id="main">
 <div id="sidebar">
 
-<details class="sb-sec" open><summary>Rules — Entries</summary><div class="sb-body">
+<details class="sb-sec" open><summary>Data</summary><div class="sb-body">
+  <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:6px">Upload a CSV export for the current section. Replaces demo data for that section only. Other sections keep their data.</div>
+
+  <div class="cgl">Current section</div>
+  <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+    <span id="data-section-name" style="font-size:12px;font-weight:600;color:var(--accent)">People</span>
+    <span id="data-section-status" style="font-size:10px;color:var(--muted)">demo data</span>
+  </div>
+
+  <div style="display:flex;gap:5px;margin-bottom:6px">
+    <button class="pbtn pri" onclick="document.getElementById('csv-upload').click()" style="flex:1">Upload CSV</button>
+    <button class="pbtn" onclick="showCsvPaste()" style="flex:1">Paste CSV</button>
+    <button class="pbtn" id="data-clear-btn" onclick="clearSectionData()" style="display:none" title="Restore demo data">✕ Clear</button>
+  </div>
+  <input type="file" id="csv-upload" accept=".csv,text/csv" style="display:none" onchange="handleCsvUpload(event)">
+
+  <div id="csv-paste-area" style="display:none">
+    <textarea id="csv-paste-input" rows="5" placeholder="Paste CSV content here..." style="width:100%;padding:4px 6px;border:1px solid var(--sbb);border-radius:4px;font-size:10px;font-family:var(--font-mono,monospace);background:var(--paper);resize:vertical"></textarea>
+    <div style="display:flex;gap:5px;margin-top:4px">
+      <button class="pbtn pri" onclick="handleCsvPaste()" style="flex:1">Load</button>
+      <button class="pbtn" onclick="document.getElementById('csv-paste-area').style.display='none'" style="flex:1">Cancel</button>
+    </div>
+  </div>
+
+  <div id="data-stats" style="display:none;font-size:10px;color:var(--muted);background:var(--bg);border-radius:4px;padding:5px 7px;line-height:1.6"></div>
+  <div id="data-error" style="display:none;font-size:10px;color:var(--danger);margin-top:4px;line-height:1.4"></div>
+</div></details>
+
+<div class="sb-body">
   <div class="tr"><label>Show empty entries</label><button class="tog on" id="tog-ee" onclick="toggleRule('showEmptyEntries',this)"></button></div>
   <div class="cr"><label>Min segment types</label><input type="number" value="1" min="1" max="6" oninput="setRule('minSegmentTypes',parseInt(this.value)||1)"></div>
   <div id="sec-note-box"></div>
@@ -649,7 +677,8 @@ let state = {
     }
   },
   edits:{},presets:[],aliases:[],
-  seeAlso:{},  // {section|entryName: [targetName, ...]}
+  seeAlso:{},
+  loadedData:{},  // {sectionId: parsedRows[]} — overrides demo DATA for that section
   // sectionRules: per section, array of {id, text, diff:{rules:{},design:{}}, active:bool}
   sectionRules:{
     people:[],topics:[],dates:[],history:[],locations:[],nigunim:[],orgs:[]
@@ -668,6 +697,182 @@ function fmtRel(rel){
 }
 function ts(t){return`font-family:${t.fam};font-size:${t.sz}px;font-weight:${t.wt};font-style:${t.st};color:${t.cl};letter-spacing:${t.ls}`;}
 
+// -- CSV PARSER --
+
+// Map section ids to recognisable column-A header values
+const SECTION_IDS = {
+  people:'people', topics:'topics', dates:'dates',
+  history:'history', locations:'locations', nigunim:'nigunim',
+  orgs:'orgs','orgs & books':'orgs'
+};
+
+function parseCSV(text){
+  // Robust CSV parser: handles quoted fields with commas and newlines
+  const rows=[];
+  let cur=[],field='',inQ=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i],n=text[i+1];
+    if(inQ){
+      if(c==='"'&&n==='"'){field+='"';i++;}
+      else if(c==='"'){inQ=false;}
+      else{field+=c;}
+    } else {
+      if(c==='"'){inQ=true;}
+      else if(c===','){cur.push(field);field='';}
+      else if(c==='\r'&&n==='\n'){cur.push(field);rows.push(cur);cur=[];field='';i++;}
+      else if(c==='\n'||c==='\r'){cur.push(field);rows.push(cur);cur=[];field='';}
+      else{field+=c;}
+    }
+  }
+  if(field||cur.length){cur.push(field);rows.push(cur);}
+  return rows.filter(r=>r.some(c=>c.trim()));
+}
+
+// Reference code display transform
+const REF_TRANSFORMS={TM:'T',ME:'M',SF:'S'};
+function transformRefCode(code){
+  const m=code.match(/^([A-Z]{2})(\d+)$/);
+  if(m&&REF_TRANSFORMS[m[1]])return REF_TRANSFORMS[m[1]]+m[2];
+  return code;
+}
+
+function csvRowsToDataRows(csvRows, sectionId){
+  if(csvRows.length<2)return[];
+  // Skip header row
+  const dataRows=csvRows.slice(1);
+  const result=[];
+
+  // Forward-fill state
+  let curEntry='',curSubtag='',curSubsubtag='',curSegType='';
+
+  for(const cols of dataRows){
+    // Pad short rows
+    while(cols.length<10)cols.push('');
+    const [entry,subtag,subsubtag,segType,,desc,relationship,reference,chapterName,relevancyRaw]=cols.map(c=>c.trim());
+
+    // Forward fill
+    if(entry) curEntry=entry;
+    if(subtag) curSubtag=subtag; else if(entry) curSubtag='';
+    if(subsubtag) curSubsubtag=subsubtag; else if(subtag||entry) curSubsubtag='';
+    if(segType) curSegType=segType; else if(entry) curSegType='';
+
+    if(!curEntry||!curSegType) continue;
+
+    // Parse relevancy
+    const rel2=parseInt(relevancyRaw)||1;
+
+    // Parse references (comma-separated)
+    const refs=reference?reference.split(',').map(r=>r.trim()).filter(Boolean):[];
+
+    // Parse relationship tag
+    const rel=relationship||null;
+
+    // Films get chapter name from col I
+    const isFilms=curSegType==='Films';
+    const chapter=isFilms?(chapterName||''):'';
+
+    result.push({
+      s: sectionId,
+      e: curEntry,
+      st: curSubtag||null,
+      sst: curSubsubtag||null,
+      seg: curSegType,
+      desc: desc||'',
+      refs,
+      rel,
+      rel2,
+      chapter,
+      location:'',
+    });
+  }
+  return result;
+}
+
+function processCSV(text, sectionId){
+  const errEl=document.getElementById('data-error');
+  const statsEl=document.getElementById('data-stats');
+  errEl.style.display='none';
+
+  let rows;
+  try{ rows=parseCSV(text); }
+  catch(e){ showDataError('Parse error: '+e.message); return; }
+
+  if(rows.length<2){ showDataError('File appears empty or has only a header row.'); return; }
+
+  const parsed=csvRowsToDataRows(rows, sectionId);
+  if(!parsed.length){ showDataError('No valid data rows found. Check the file format.'); return; }
+
+  // Store in state and localStorage
+  state.loadedData[sectionId]=parsed;
+  try{
+    const stored=JSON.parse(localStorage.getItem('jem_loaded')||'{}');
+    stored[sectionId]=parsed;
+    localStorage.setItem('jem_loaded',JSON.stringify(stored));
+  }catch(e){}
+
+  // Update UI
+  const entryCount=new Set(parsed.map(r=>r.e)).size;
+  statsEl.style.display='block';
+  statsEl.innerHTML=`<strong>${parsed.length}</strong> rows &nbsp;·&nbsp; <strong>${entryCount}</strong> entries &nbsp;·&nbsp; loaded ${new Date().toLocaleTimeString()}`;
+  updateDataSectionStatus(sectionId);
+  buildSeeAlsoPanel();
+  render();
+}
+
+function showDataError(msg){
+  const el=document.getElementById('data-error');
+  el.textContent=msg; el.style.display='block';
+}
+
+function handleCsvUpload(event){
+  const file=event.target.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>processCSV(e.target.result, activeSection);
+  reader.readAsText(file);
+  event.target.value=''; // reset so same file can be re-uploaded
+}
+
+function handleCsvPaste(){
+  const text=document.getElementById('csv-paste-input').value;
+  if(!text.trim()){showDataError('Nothing to load — paste your CSV first.');return;}
+  processCSV(text, activeSection);
+  document.getElementById('csv-paste-area').style.display='none';
+  document.getElementById('csv-paste-input').value='';
+}
+
+function showCsvPaste(){
+  const area=document.getElementById('csv-paste-area');
+  area.style.display=area.style.display==='none'?'block':'none';
+}
+
+function clearSectionData(){
+  if(!confirm('Remove loaded data and restore demo data for this section?'))return;
+  delete state.loadedData[activeSection];
+  try{
+    const stored=JSON.parse(localStorage.getItem('jem_loaded')||'{}');
+    delete stored[activeSection];
+    localStorage.setItem('jem_loaded',JSON.stringify(stored));
+  }catch(e){}
+  document.getElementById('data-stats').style.display='none';
+  document.getElementById('data-error').style.display='none';
+  updateDataSectionStatus(activeSection);
+  buildSeeAlsoPanel();
+  render();
+}
+
+function updateDataSectionStatus(sectionId){
+  const nameEl=document.getElementById('data-section-name');
+  const statusEl=document.getElementById('data-section-status');
+  const clearBtn=document.getElementById('data-clear-btn');
+  const sec=SECTIONS.find(s=>s.id===sectionId);
+  if(nameEl&&sec)nameEl.textContent=sec.label;
+  const hasLoaded=!!(state.loadedData[sectionId]&&state.loadedData[sectionId].length);
+  if(statusEl)statusEl.textContent=hasLoaded?'real data':'demo data';
+  if(statusEl)statusEl.style.color=hasLoaded?'#2d6a2d':'var(--muted)';
+  if(clearBtn)clearBtn.style.display=hasLoaded?'block':'none';
+}
+
 // -- RULES ENGINE --
 // Returns effective rules for a section: global rules merged with active section rule diffs
 function effectiveRules(section){
@@ -684,7 +889,8 @@ function effectiveDesign(section){
 }
 function applyRules(section){
   const r=effectiveRules(section),d=effectiveDesign(section);
-  const rows=DATA.filter(x=>x.s===section);
+  // Use real loaded data if available for this section, otherwise demo DATA
+  const rows=(state.loadedData[section]||DATA.filter(x=>x.s===section));
   
   // Aliases come from state, not DATA — filtered to current section
   const aliases=state.aliases.filter(a=>a.s===section);
@@ -912,94 +1118,115 @@ function _doRender(){
   document.getElementById('flag-num').textContent=flags;
   document.getElementById('flag-count').style.display=isEd&&flags>0?'block':'none';
 
-  const PX=96; // CSS px per inch at screen resolution
+  const PX=96;
   const pxW=d.pageW*PX, pxH=d.pageH*PX;
   const pxMT=d.mgT*PX, pxMB=d.mgB*PX, pxMI=d.mgI*PX, pxMO=d.mgO*PX;
   const cH=pxH-pxMT-pxMB;
   const colGap=r.columnGap*PX;
-  // Exact column content width matching what the flex layout produces
   const totalColSpace=pxW-pxMI-pxMO-(r.columns-1)*colGap;
   const colW=Math.floor(totalColSpace/r.columns);
 
-  // Measurer: fixed position, exact column width, same font environment
-  let msr=document.getElementById('_msr');
-  if(!msr){
-    msr=document.createElement('div');
-    msr.id='_msr';
-    msr.style.cssText='position:fixed;visibility:hidden;pointer-events:none;top:-9999px;left:0;z-index:-1;overflow:hidden;';
-    document.body.appendChild(msr);
-  }
-  msr.style.width=colW+'px';
+  const preview=document.getElementById('preview-area');
+  preview.querySelectorAll('.book-page').forEach(p=>p.remove());
 
-  // Build all HTML strings
+  // Build entry HTML strings once
   const htmls=entries.map(e=>buildEntry(e,r,d,isEd,isPeople));
 
-  // Measure heights — strip the entry's top margin for the first item in a
-  // column since CSS margin-top on the first child doesn't add to scrollHeight
-  const entryMTpx=parseFloat(d.entryMT)||0;
-  const heights=htmls.map(h=>{
-    msr.innerHTML=h;
-    return msr.scrollHeight; // scrollHeight is more reliable than offsetHeight
-  });
+  // --- PASS 1: measure every entry in a real off-screen column ---
+  // Use an absolutely positioned off-screen div that matches the exact column
+  // dimensions including overflow:hidden so measurements are accurate
+  let probe=document.getElementById('_probe');
+  if(!probe){
+    probe=document.createElement('div');
+    probe.id='_probe';
+    probe.style.cssText=[
+      'position:absolute','top:0','left:-9999px','z-index:-1',
+      'overflow:hidden','visibility:hidden','pointer-events:none'
+    ].join(';');
+    document.body.appendChild(probe);
+  }
+  probe.style.width=colW+'px';
+  // Remove height constraint so we get true content height
+  probe.style.height='';
 
-  // Pack entries into columns greedily.
-  // First entry in each column: subtract its top margin (it collapses against the column top)
+  const heights=htmls.map(h=>{
+    probe.innerHTML=h;
+    // Use getBoundingClientRect for accurate sub-pixel height
+    const child=probe.firstElementChild;
+    return child ? child.getBoundingClientRect().height : probe.scrollHeight;
+  });
+  probe.innerHTML='';
+
+  // --- PASS 2: greedy column packing ---
+  // We intentionally do NOT subtract the first-entry top margin.
+  // Instead, the column div uses padding-top:0 and the entry margin is
+  // accounted for in the measured height directly.
+  // Use a small safety buffer (4px) to avoid off-by-one overflow.
+  const BUFFER=4;
+  const colCapacity=cH-BUFFER;
+
   const pages=[];
-  let pg=[], curCols=[], curH=0, firstInCol=true;
+  let pg=[], col=[], colH=0;
+
+  function closeCol(){
+    pg.push(col); col=[]; colH=0;
+    if(pg.length>=r.columns){ pages.push(pg); pg=[]; }
+  }
 
   for(let i=0;i<entries.length;i++){
-    const effectiveH = firstInCol ? heights[i]-entryMTpx : heights[i];
-    if(!firstInCol && curH+effectiveH>cH && curCols.length>0){
-      // Column full — close it
-      pg.push(curCols);
-      curCols=[];curH=0;firstInCol=true;
-      if(pg.length>=r.columns){pages.push(pg);pg=[];}
-      // Re-evaluate effective height as first in new column
-      const eh2=heights[i]-entryMTpx;
-      curCols.push(i);curH+=eh2;firstInCol=false;
-    } else {
-      curCols.push(i);
-      curH+=(firstInCol?heights[i]-entryMTpx:heights[i]);
-      firstInCol=false;
-    }
+    const h=heights[i];
+    // If a single entry is taller than the whole column, it goes in alone
+    if(colH>0 && colH+h>colCapacity) closeCol();
+    col.push(i);
+    colH+=h;
   }
-  if(curCols.length)pg.push(curCols);
-  if(pg.length)pages.push(pg);
+  if(col.length) closeCol();
+  if(pg.length) pages.push(pg);
 
-  // Render pages
-  const preview=document.getElementById('preview-area');
-  const savedScroll=preview.scrollTop;
-  preview.querySelectorAll('.book-page').forEach(p=>p.remove());
+  // --- PASS 3: render pages with real columns ---
+  const colRuleStyle=r.columnRule?'border-left:0.5px solid #ccc;':'';
 
   pages.forEach((pgCols,pi)=>{
     const page=document.createElement('div');
     page.className='book-page'+(isEd?' editorial-mode':'');
-    page.style.cssText=`width:${pxW}px;height:${pxH}px;`
-      +`padding:${pxMT}px ${pxMO}px ${pxMB}px ${pxMI}px;`
-      +`gap:${colGap}px;align-items:flex-start;`;
+    page.style.cssText=[
+      `width:${pxW}px`,`height:${pxH}px`,
+      `padding:${pxMT}px ${pxMO}px ${pxMB}px ${pxMI}px`,
+      `gap:${colGap}px`,`align-items:flex-start`,
+      'position:relative','overflow:hidden'
+    ].join(';');
 
     for(let ci=0;ci<r.columns;ci++){
       const colEl=document.createElement('div');
       colEl.className='book-col'+(r.columnRule&&ci>0?' col-rule':'');
-      // Use explicit width instead of flex:1 to match measurer exactly
-      colEl.style.cssText=`width:${colW}px;height:${cH}px;flex-shrink:0;`;
+      colEl.style.cssText=[
+        `width:${colW}px`,`height:${cH}px`,
+        'flex-shrink:0','overflow:hidden',
+        ci>0?colRuleStyle:''
+      ].filter(Boolean).join(';');
       const idxs=pgCols[ci]||[];
       colEl.innerHTML=idxs.map(i=>htmls[i]).join('');
       page.appendChild(colEl);
     }
 
-    // Page number
     const pgN=document.createElement('div');
     pgN.className='pg-num';
-    pgN.style.bottom=(pxMB/3)+'px';
-    pgN.style.fontFamily=d.typo.description.fam;
-    page.style.position='relative';
-    page.appendChild(pgN);
+    pgN.style.cssText=`bottom:${pxMB/3}px;font-family:${d.typo.description.fam};`;
     pgN.textContent=pi+1;
-
+    page.appendChild(pgN);
     preview.appendChild(page);
   });
-  preview.scrollTop=savedScroll;
+
+  // --- PASS 4: post-render correction ---
+  // After DOM is painted, check if any column is actually overflowing
+  // and re-render if measurements were off (e.g. fonts just loaded)
+  requestAnimationFrame(()=>{
+    let needsReflow=false;
+    preview.querySelectorAll('.book-col').forEach(colEl=>{
+      if(colEl.scrollHeight>colEl.clientHeight+8) needsReflow=true;
+    });
+    if(needsReflow) _doRender();
+  });
 }
 
 // -- SECTION NAV --
@@ -1018,6 +1245,7 @@ function switchSection(id){
   buildAliasList();
   buildSectionRulesList();
   buildSeeAlsoPanel();
+  updateDataSectionStatus(id);
   render();
 }
 function applySectionDefaults(id){
@@ -1310,7 +1538,8 @@ function seeAlsoKey(entry){ return `${activeSection}|${entry}`; }
 
 function getSectionEntryNames(){
   const seen=new Set();
-  DATA.filter(r=>r.s===activeSection&&!r.isAlias).forEach(r=>seen.add(r.e));
+  const rows=state.loadedData[activeSection]||DATA.filter(r=>r.s===activeSection);
+  rows.filter(r=>!r.isAlias).forEach(r=>seen.add(r.e));
   return [...seen].sort((a,b)=>a.localeCompare(b));
 }
 
@@ -1448,9 +1677,15 @@ function buildPresetSel(){const s=document.getElementById('preset-sel');s.innerH
 // -- INIT --
 (function(){
   try{const s=localStorage.getItem('jem_p');if(s)state.presets=JSON.parse(s);}catch{}
-  buildSecTabs();buildSegChecklist();buildSegOrder();buildTypoPanel();buildPresetSel();buildAliasList();buildSectionRulesList();buildSeeAlsoPanel();
+  // Restore previously loaded CSV data
+  try{const ld=localStorage.getItem('jem_loaded');if(ld)state.loadedData=JSON.parse(ld);}catch{}
+  buildSecTabs();buildSegChecklist();buildSegOrder();buildTypoPanel();buildPresetSel();buildAliasList();buildSectionRulesList();buildSeeAlsoPanel();updateDataSectionStatus(activeSection);
   updateSecNote(activeSection);
   render();
+  // Re-render once web fonts are loaded so measurements use correct font metrics
+  if(document.fonts&&document.fonts.ready){
+    document.fonts.ready.then(()=>{ _doRender(); });
+  }
   // Re-render once fonts are loaded so measurements are accurate
   if(document.fonts && document.fonts.ready){
     document.fonts.ready.then(()=>{ _doRender(); });
