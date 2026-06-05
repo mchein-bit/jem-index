@@ -2327,32 +2327,31 @@ const RULE_SCHEMA = {
   }
 };
 
-const SYSTEM_PROMPT = `You are a layout rules interpreter for a print book index tool.
-The operator describes a formatting or filtering rule in plain English.
-You must return ONLY a JSON object with two optional keys: "rules" and "design".
-Each key maps to a flat object of property overrides matching the schema below.
-Only include properties that the rule actually changes — omit everything else.
-Also return a "summary" string (max 8 words) describing what the rule does.
-Also return a "keys" array listing every property key you are changing.
+const SYSTEM_PROMPT = `You are a JSON-only rule interpreter for a book layout tool.
+You MUST respond with ONLY a valid JSON object. No explanation, no markdown, no backticks, no preamble, no text before or after the JSON.
 
-SCHEMA:
-rules: ${JSON.stringify(RULE_SCHEMA.rules)}
-design: ${JSON.stringify(RULE_SCHEMA.design)}
+The user describes a formatting rule. Return a JSON object with exactly these keys:
+- "summary": string, max 6 words describing the rule
+- "keys": array of property names being changed
+- "rules": object with rule property overrides (can be empty {})
+- "design": object with design property overrides (can be empty {})
 
-hiddenSegTypes is an array of segment type names to hide. Valid values: "Addresses","Timeless Moments","Conversations","My Encounter","Short Films","Films"
-px-string means a string like "8px" or "12px".
-number-string means a string like "1.4" or "2".
+Available rule properties:
+showRelTag (bool), topN (number or null), minRelevancy (1|2|3), showEmptyEntries (bool), suppressDupes (bool), applyTransform (bool), maxRefs (number or null), boldThreshold (2|3), emptyBehavior ("flag"|"hide"|"block"), refAlign ("pushed"|"inline"), refSep (string), columns (1|2|3), columnGap (number)
 
-Examples:
-"show only refs, no descriptions" -> {"rules":{"showRelTag":false,"emptyBehavior":"hide"},"design":{},"summary":"Hide descriptions and rel tags","keys":["showRelTag","emptyBehavior"]}
-"top 3 lines per segment" -> {"rules":{"topN":3},"design":{},"summary":"Limit to top 3 lines per segment","keys":["topN"]}
-"hide relationship tags" -> {"rules":{"showRelTag":false},"design":{},"summary":"Hide relationship tags","keys":["showRelTag"]}
-"use inline ref style" -> {"rules":{"refAlign":"inline"},"design":{},"summary":"Inline reference alignment","keys":["refAlign"]}
-"only show addresses and short films" -> {"rules":{"hiddenSegTypes":["Timeless Moments","Conversations","My Encounter","Films"]},"design":{},"summary":"Show only Addresses and Short Films","keys":["hiddenSegTypes"]}
-"show only relevancy 3" -> {"rules":{"minRelevancy":3},"design":{},"summary":"Show only relevancy 3 lines","keys":["minRelevancy"]}
-"increase description indent to 20px" -> {"rules":{},"design":{"descInd":"20px"},"summary":"Increase description indent","keys":["descInd"]}
+Available design properties:
+descInd (px string like "16px"), segInd (px string), lineH (number string like "1.4"), entryMT (px string), entryMB (px string)
 
-Return ONLY valid JSON. No markdown, no explanation.`;
+Example input: "show only refs no descriptions"
+Example output: {"summary":"Hide descriptions show refs","keys":["showRelTag","emptyBehavior"],"rules":{"showRelTag":false,"emptyBehavior":"hide"},"design":{}}
+
+Example input: "top 3 lines per segment"
+Example output: {"summary":"Top 3 lines per segment","keys":["topN"],"rules":{"topN":3},"design":{}}
+
+Example input: "inline refs separated by commas"
+Example output: {"summary":"Inline refs with commas","keys":["refAlign","refSep"],"rules":{"refAlign":"inline","refSep":", "},"design":{}}
+
+Respond with JSON only. Nothing else.`;
 
 const SECTION_RULE_SUGGESTIONS = {
   _common:[
@@ -2414,7 +2413,7 @@ async function addSectionRule(){
       },
       body:JSON.stringify({
         model:'claude-sonnet-4-20250514',
-        max_tokens:1000,
+        max_tokens:500,
         system:SYSTEM_PROMPT,
         messages:[{role:'user',content:text}]
       })
@@ -2422,7 +2421,10 @@ async function addSectionRule(){
     const data=await response.json();
     const raw=data.content?.[0]?.text||'';
     let parsed;
-    try{ parsed=JSON.parse(raw.replace(/```json|```/g,'').trim()); }
+    try{
+      const clean=raw.replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
+      parsed=JSON.parse(clean);
+    }
     catch{ throw new Error('Could not parse response: '+raw.substring(0,100)); }
 
     const diff={rules:parsed.rules||{},design:parsed.design||{}};
