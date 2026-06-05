@@ -1974,63 +1974,51 @@ function _doRender(){
   const colW=Math.floor(totalColSpace/r.columns);
 
   const preview=document.getElementById('preview-area');
+  const savedScroll=preview.scrollTop;
   preview.querySelectorAll('.book-page').forEach(p=>p.remove());
 
   // Build entry HTML strings once
   const htmls=entries.map(e=>buildEntry(e,r,d,isEd,isPeople));
 
-  // --- PASS 1: measure every entry in a real off-screen column ---
-  // Use an absolutely positioned off-screen div that matches the exact column
-  // dimensions including overflow:hidden so measurements are accurate
-  let probe=document.getElementById('_probe');
-  if(!probe){
-    probe=document.createElement('div');
-    probe.id='_probe';
-    probe.style.cssText=[
-      'position:absolute','top:0','left:-9999px','z-index:-1',
-      'overflow:hidden','visibility:hidden','pointer-events:none'
-    ].join(';');
-    document.body.appendChild(probe);
-  }
-  probe.style.width=colW+'px';
-  // Remove height constraint so we get true content height
-  probe.style.height='';
+  // --- PASS 1: render all entries into one tall off-screen column ---
+  const tall=document.createElement('div');
+  tall.style.cssText=[
+    'position:absolute','left:-9999px','top:0',
+    `width:${colW}px`,'visibility:hidden','overflow:visible','height:auto',
+    'pointer-events:none'
+  ].join(';');
+  tall.innerHTML=htmls.join('');
+  document.body.appendChild(tall);
 
-  const heights=htmls.map(h=>{
-    probe.innerHTML=h;
-    // Use getBoundingClientRect for accurate sub-pixel height
-    const child=probe.firstElementChild;
-    return child ? child.getBoundingClientRect().height : probe.scrollHeight;
+  // --- PASS 2: read real painted positions from the DOM ---
+  void document.body.offsetHeight; // force layout
+  const children=tall.querySelectorAll('.entry');
+  const entryTops=[], entryBottoms=[];
+  children.forEach(el=>{
+    entryTops.push(el.offsetTop);
+    entryBottoms.push(el.offsetTop+el.offsetHeight);
   });
-  probe.innerHTML='';
+  document.body.removeChild(tall);
 
-  // --- PASS 2: greedy column packing ---
-  // We intentionally do NOT subtract the first-entry top margin.
-  // Instead, the column div uses padding-top:0 and the entry margin is
-  // accounted for in the measured height directly.
-  // Use a small safety buffer (4px) to avoid off-by-one overflow.
-  const BUFFER=4;
-  const colCapacity=cH-BUFFER;
-
+  // --- PASS 3: greedy column packing using real positions ---
   const pages=[];
-  let pg=[], col=[], colH=0;
+  let pg=[], col=[], colStart=null;
 
   function closeCol(){
-    pg.push(col); col=[]; colH=0;
+    pg.push(col); col=[]; colStart=null;
     if(pg.length>=r.columns){ pages.push(pg); pg=[]; }
   }
 
   for(let i=0;i<entries.length;i++){
-    const h=heights[i];
-    // If a single entry is taller than the whole column, it goes in alone
-    if(colH>0 && colH+h>colCapacity) closeCol();
+    if(colStart===null) colStart=entryTops[i];
+    if(col.length>0 && entryBottoms[i]-colStart>cH) closeCol();
+    if(colStart===null) colStart=entryTops[i];
     col.push(i);
-    colH+=h;
   }
   if(col.length) closeCol();
   if(pg.length) pages.push(pg);
 
-  // --- PASS 3: render pages with real columns ---
+  // --- PASS 4: render pages ---
   const colRuleStyle=r.columnRule?'border-left:0.5px solid #ccc;':'';
 
   pages.forEach((pgCols,pi)=>{
@@ -2064,16 +2052,7 @@ function _doRender(){
     preview.appendChild(page);
   });
 
-  // --- PASS 4: post-render correction ---
-  // After DOM is painted, check if any column is actually overflowing
-  // and re-render if measurements were off (e.g. fonts just loaded)
-  requestAnimationFrame(()=>{
-    let needsReflow=false;
-    preview.querySelectorAll('.book-col').forEach(colEl=>{
-      if(colEl.scrollHeight>colEl.clientHeight+8) needsReflow=true;
-    });
-    if(needsReflow) _doRender();
-  });
+  preview.scrollTop=savedScroll;
 }
 
 function _doRenderVideoDesc(){
