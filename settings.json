@@ -1,1 +1,128 @@
-{"version":1,"updatedAt":null,"updatedBy":null,"rules":{},"design":{}}
+{
+  "version": 1,
+  "updatedAt": "2026-06-05T15:28:37.436Z",
+  "updatedBy": "",
+  "rules": {
+    "showEmptyEntries": true,
+    "minSegmentTypes": 1,
+    "hiddenSegTypes": [],
+    "segTypeOrder": [
+      "Addresses",
+      "Timeless Moments",
+      "Conversations",
+      "My Encounter",
+      "Short Films",
+      "Films"
+    ],
+    "topN": null,
+    "minRelevancy": 1,
+    "condSuppress": false,
+    "tieBreaker": "sheet",
+    "suppressDupes": false,
+    "showRelTag": false,
+    "applyTransform": true,
+    "maxRefs": null,
+    "boldThreshold": 3,
+    "boldStyle": "bold-underline",
+    "emptyBehavior": "flag",
+    "filmUnknown": "placeholder",
+    "refSep": " , ",
+    "refAlign": "pushed",
+    "relTagStyle": "brackets",
+    "entryDivider": "none",
+    "columns": 2,
+    "columnGap": 0.25,
+    "columnRule": false
+  },
+  "design": {
+    "pageW": 7,
+    "pageH": 10,
+    "mgT": 0.75,
+    "mgB": 0.75,
+    "mgI": 0.875,
+    "mgO": 0.625,
+    "entryMT": "10px",
+    "entryMB": "2px",
+    "segMT": "5px",
+    "segMB": "1px",
+    "lineH": "1.4",
+    "lineGap": "1px",
+    "subInd": "10px",
+    "segInd": "8px",
+    "descInd": "16px",
+    "typo": {
+      "entry": {
+        "fam": "'Playfair Display',Georgia,serif",
+        "sz": 14,
+        "wt": 700,
+        "st": "normal",
+        "cl": "#000000",
+        "ls": "0em"
+      },
+      "segtype": {
+        "fam": "'Playfair Display',Georgia,serif",
+        "sz": 9,
+        "wt": 400,
+        "st": "italic",
+        "cl": "#444444",
+        "ls": "0.07em"
+      },
+      "description": {
+        "fam": "'Playfair Display',Georgia,serif",
+        "sz": 10.5,
+        "wt": 400,
+        "st": "normal",
+        "cl": "#000000",
+        "ls": "0em"
+      },
+      "refLow": {
+        "fam": "'Playfair Display',Georgia,serif",
+        "sz": 10.5,
+        "wt": 400,
+        "st": "italic",
+        "cl": "#444444",
+        "ls": "0em"
+      },
+      "refHigh": {
+        "fam": "'Playfair Display',Georgia,serif",
+        "sz": 10.5,
+        "wt": 700,
+        "st": "normal",
+        "cl": "#000000",
+        "ls": "0em"
+      },
+      "relTag": {
+        "fam": "'Playfair Display',Georgia,serif",
+        "sz": 8.5,
+        "wt": 400,
+        "st": "italic",
+        "cl": "#888888",
+        "ls": "0em"
+      },
+      "emptyFlag": {
+        "fam": "'Playfair Display',Georgia,serif",
+        "sz": 10,
+        "wt": 700,
+        "st": "normal",
+        "cl": "#b91c1c",
+        "ls": "0em"
+      },
+      "subHeading": {
+        "fam": "'Playfair Display',Georgia,serif",
+        "sz": 12,
+        "wt": 700,
+        "st": "normal",
+        "cl": "#000000",
+        "ls": "0em"
+      },
+      "subsubHeading": {
+        "fam": "'Playfair Display',Georgia,serif",
+        "sz": 11,
+        "wt": 600,
+        "st": "normal",
+        "cl": "#222222",
+        "ls": "0em"
+      }
+    }
+  }
+}
