@@ -128,6 +128,8 @@ body{font-family:var(--ui);background:var(--bg);color:var(--ink);height:100vh;di
   .book-page:last-child{page-break-after:avoid}
   .edit-icons{display:none!important}
 }
+.rule-pill{background:#eeedf8;color:var(--accent);font-size:10px;border:none;border-radius:10px;padding:2px 8px;cursor:pointer;line-height:1.6;white-space:nowrap}
+.rule-pill:hover{background:#dddcf0}
 </style>
 </head>
 <body>
@@ -253,11 +255,26 @@ body{font-family:var(--ui);background:var(--bg);color:var(--ink);height:100vh;di
 <details class="sb-sec" id="sec-rules-panel" open><summary>Section Rules — <span id="sec-rules-label" style="text-transform:none;letter-spacing:0;font-weight:600;color:var(--accent)">People</span></summary><div class="sb-body">
   <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:6px">Describe a rule in plain English. Claude interprets it and applies it to this section only. Toggle rules on/off with the switch.</div>
   <div id="sec-rules-list" style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px"></div>
+  <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Suggestions</div>
+  <div id="sec-rule-suggestions" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px"></div>
   <div style="display:flex;gap:5px;align-items:flex-start">
     <textarea id="sec-rule-input" placeholder="e.g. show only refs, no descriptions&#10;hide relationship tags&#10;top 3 lines per segment&#10;use inline ref style" rows="2" style="flex:1;padding:4px 6px;border:1px solid var(--sbb);border-radius:4px;font-size:11px;font-family:var(--ui);background:var(--paper);resize:none;line-height:1.4"></textarea>
     <button class="pbtn pri" id="sec-rule-btn" onclick="addSectionRule()" style="white-space:nowrap;align-self:flex-end">Interpret</button>
   </div>
   <div id="sec-rule-status" style="font-size:10px;color:var(--muted);margin-top:4px;min-height:14px"></div>
+  <div id="sec-rule-diff" style="display:none;margin-top:8px;border:1px solid var(--sbb);border-radius:5px;padding:8px;background:#fafaf8">
+    <div id="sec-rule-diff-summary" style="font-size:11px;font-weight:600;color:var(--ink);margin-bottom:6px"></div>
+    <div style="display:flex;gap:8px;margin-bottom:4px">
+      <div style="width:110px;flex-shrink:0"></div>
+      <div style="flex:1;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Before</div>
+      <div style="flex:1;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">After</div>
+    </div>
+    <div id="sec-rule-diff-table"></div>
+    <div style="display:flex;gap:6px;margin-top:8px">
+      <button class="pbtn pri" onclick="applySectionRulePending()">Apply</button>
+      <button class="pbtn" onclick="cancelSectionRulePending()">Cancel</button>
+    </div>
+  </div>
 </div></details>
 
 
@@ -2337,22 +2354,64 @@ Examples:
 
 Return ONLY valid JSON. No markdown, no explanation.`;
 
+const SECTION_RULE_SUGGESTIONS = {
+  _common:[
+    'Show only refs, no descriptions',
+    'Top 3 lines per segment',
+    'Hide relationship tags',
+    'Show only relevancy 3',
+    'Hide Short Films',
+    'Show only Addresses',
+  ],
+  people:['Show refs inline with commas'],
+  nigunim:['Hide all empty descriptions'],
+};
+
+function buildSectionRuleSuggestions(){
+  const el=document.getElementById('sec-rule-suggestions');
+  if(!el)return;
+  const pills=[...SECTION_RULE_SUGGESTIONS._common,...(SECTION_RULE_SUGGESTIONS[activeSection]||[])];
+  el.innerHTML=pills.map(p=>`<button class="rule-pill" onclick="fillRuleInput(${JSON.stringify(p)})">${p}</button>`).join('');
+}
+
+function fillRuleInput(text){
+  const ta=document.getElementById('sec-rule-input');
+  ta.value=text;
+  ta.focus();
+}
+
+let _pendingRule=null;
+
 async function addSectionRule(){
   const textarea=document.getElementById('sec-rule-input');
   const btn=document.getElementById('sec-rule-btn');
   const status=document.getElementById('sec-rule-status');
+  const diffEl=document.getElementById('sec-rule-diff');
   const text=textarea.value.trim();
   if(!text)return;
+
+  let apiKey=localStorage.getItem('jem_api_key');
+  if(!apiKey){
+    apiKey=prompt('Enter your Anthropic API key (stored locally, never shared):');
+    if(!apiKey)return;
+    localStorage.setItem('jem_api_key',apiKey);
+  }
 
   btn.disabled=true;
   btn.textContent='...';
   status.textContent='Interpreting rule...';
   status.style.color='var(--muted)';
+  diffEl.style.display='none';
 
   try{
     const response=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key':apiKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
       body:JSON.stringify({
         model:'claude-sonnet-4-20250514',
         max_tokens:1000,
@@ -2370,10 +2429,9 @@ async function addSectionRule(){
     const summary=parsed.summary||text.substring(0,40);
     const newKeys=parsed.keys||[...Object.keys(diff.rules),...Object.keys(diff.design)];
 
-    // Conflict detection: check if any active rule already touches these keys
+    // Conflict detection
     const existing=state.sectionRules[activeSection]||[];
     const conflicts=existing.filter(r=>r.active&&r.keys&&r.keys.some(k=>newKeys.includes(k)));
-
     if(conflicts.length){
       const conflictNames=conflicts.map(r=>'"'+r.summary+'"').join(', ');
       const proceed=confirm(`This rule conflicts with: ${conflictNames}\n\nThe existing rule(s) affect the same properties. Add anyway?`);
@@ -2385,16 +2443,27 @@ async function addSectionRule(){
       }
     }
 
-    if(!state.sectionRules[activeSection]) state.sectionRules[activeSection]=[];
-    state.sectionRules[activeSection].push({
-      id:Date.now(), text, summary, diff, keys:newKeys, active:true
-    });
-
-    textarea.value='';
-    status.textContent='Rule added: '+summary;
-    status.style.color='#2d6a2d';
-    buildSectionRulesList();
-    render();
+    // Store pending and show diff preview
+    _pendingRule={text,summary,diff,keys:newKeys};
+    const curRules=effectiveRules(activeSection);
+    const curDesign=effectiveDesign(activeSection);
+    const rows=[];
+    for(const [k,v] of Object.entries(diff.rules)){
+      rows.push({prop:k,before:curRules[k]!==undefined?String(curRules[k]):'—',after:String(v)});
+    }
+    for(const [k,v] of Object.entries(diff.design)){
+      rows.push({prop:k,before:curDesign[k]!==undefined?String(curDesign[k]):'—',after:String(v)});
+    }
+    document.getElementById('sec-rule-diff-summary').textContent='Rule: '+summary;
+    document.getElementById('sec-rule-diff-table').innerHTML=rows.map(r=>`
+      <div style="display:flex;gap:8px;align-items:baseline;margin-bottom:4px">
+        <div style="width:110px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.prop}</div>
+        <div style="flex:1;font-size:10px;color:#c00;text-decoration:line-through;word-break:break-all">${r.before}</div>
+        <div style="flex:1;font-size:10px;color:#2d6a2d;word-break:break-all">${r.after}</div>
+      </div>`).join('');
+    diffEl.style.display='block';
+    status.textContent='Review the changes below, then click Apply or Cancel.';
+    status.style.color='var(--muted)';
 
   } catch(err){
     status.textContent='Error: '+err.message;
@@ -2403,6 +2472,26 @@ async function addSectionRule(){
 
   btn.disabled=false;
   btn.textContent='Interpret';
+}
+
+function applySectionRulePending(){
+  if(!_pendingRule)return;
+  const {text,summary,diff,keys}=_pendingRule;
+  _pendingRule=null;
+  if(!state.sectionRules[activeSection]) state.sectionRules[activeSection]=[];
+  state.sectionRules[activeSection].push({id:Date.now(),text,summary,diff,keys,active:true});
+  document.getElementById('sec-rule-input').value='';
+  document.getElementById('sec-rule-diff').style.display='none';
+  document.getElementById('sec-rule-status').textContent='Rule added: '+summary;
+  document.getElementById('sec-rule-status').style.color='#2d6a2d';
+  buildSectionRulesList();
+  render();
+}
+
+function cancelSectionRulePending(){
+  _pendingRule=null;
+  document.getElementById('sec-rule-diff').style.display='none';
+  document.getElementById('sec-rule-status').textContent='';
 }
 
 function toggleSectionRule(id){
@@ -2423,6 +2512,7 @@ function buildSectionRulesList(){
   if(!el)return;
   const lbl=document.getElementById('sec-rules-label');
   if(lbl){const sec=SECTIONS.find(s=>s.id===activeSection);lbl.textContent=sec?sec.label:activeSection;}
+  buildSectionRuleSuggestions();
   const rules=state.sectionRules[activeSection]||[];
   if(!rules.length){
     el.innerHTML=`<div style="font-size:11px;color:var(--muted);font-style:italic">No rules yet. Describe a rule above.</div>`;
