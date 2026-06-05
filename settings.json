@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updatedAt": "2026-06-05T15:28:37.436Z",
-  "updatedBy": "",
+  "updatedAt": "2026-06-05T16:52:40.361Z",
+  "updatedBy": "Mendel",
   "rules": {
     "showEmptyEntries": true,
     "minSegmentTypes": 1,
@@ -31,16 +31,16 @@
     "relTagStyle": "brackets",
     "entryDivider": "none",
     "columns": 2,
-    "columnGap": 0.25,
+    "columnGap": 0.6875,
     "columnRule": false
   },
   "design": {
-    "pageW": 7,
-    "pageH": 10,
+    "pageW": 8.5,
+    "pageH": 11,
     "mgT": 0.75,
     "mgB": 0.75,
-    "mgI": 0.875,
-    "mgO": 0.625,
+    "mgI": 0.75,
+    "mgO": 0.75,
     "entryMT": "10px",
     "entryMB": "2px",
     "segMT": "5px",
@@ -48,7 +48,7 @@
     "lineH": "1.4",
     "lineGap": "1px",
     "subInd": "10px",
-    "segInd": "8px",
+    "segInd": "3px",
     "descInd": "16px",
     "typo": {
       "entry": {
