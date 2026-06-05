@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-06-05T16:52:40.361Z",
+  "updatedAt": "2026-06-05T16:59:39.970Z",
   "updatedBy": "Mendel",
   "rules": {
     "showEmptyEntries": true,
@@ -52,31 +52,31 @@
     "descInd": "16px",
     "typo": {
       "entry": {
-        "fam": "'Playfair Display',Georgia,serif",
-        "sz": 14,
+        "fam": "Georgia,serif",
+        "sz": 14.5,
         "wt": 700,
         "st": "normal",
         "cl": "#000000",
         "ls": "0em"
       },
       "segtype": {
-        "fam": "'Playfair Display',Georgia,serif",
-        "sz": 9,
+        "fam": "Georgia,serif",
+        "sz": 10,
         "wt": 400,
         "st": "italic",
         "cl": "#444444",
         "ls": "0.07em"
       },
       "description": {
-        "fam": "'Playfair Display',Georgia,serif",
-        "sz": 10.5,
+        "fam": "Georgia,serif",
+        "sz": 12.5,
         "wt": 400,
         "st": "normal",
         "cl": "#000000",
         "ls": "0em"
       },
       "refLow": {
-        "fam": "'Playfair Display',Georgia,serif",
+        "fam": "Georgia,serif",
         "sz": 10.5,
         "wt": 400,
         "st": "italic",
@@ -84,7 +84,7 @@
         "ls": "0em"
       },
       "refHigh": {
-        "fam": "'Playfair Display',Georgia,serif",
+        "fam": "Georgia,serif",
         "sz": 10.5,
         "wt": 700,
         "st": "normal",
@@ -92,7 +92,7 @@
         "ls": "0em"
       },
       "relTag": {
-        "fam": "'Playfair Display',Georgia,serif",
+        "fam": "Georgia,serif",
         "sz": 8.5,
         "wt": 400,
         "st": "italic",
@@ -100,7 +100,7 @@
         "ls": "0em"
       },
       "emptyFlag": {
-        "fam": "'Playfair Display',Georgia,serif",
+        "fam": "Georgia,serif",
         "sz": 10,
         "wt": 700,
         "st": "normal",
@@ -108,7 +108,7 @@
         "ls": "0em"
       },
       "subHeading": {
-        "fam": "'Playfair Display',Georgia,serif",
+        "fam": "Georgia,serif",
         "sz": 12,
         "wt": 700,
         "st": "normal",
@@ -116,8 +116,8 @@
         "ls": "0em"
       },
       "subsubHeading": {
-        "fam": "'Playfair Display',Georgia,serif",
-        "sz": 11,
+        "fam": "Georgia,serif",
+        "sz": 9.5,
         "wt": 600,
         "st": "normal",
         "cl": "#222222",
