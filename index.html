@@ -142,6 +142,9 @@ body{font-family:var(--ui);background:var(--bg);color:var(--ink);height:100vh;di
     <button id="mode-pr" onclick="setMode('print')">Print</button>
   </div>
   <button id="btn-export" onclick="exportPDF()">Export PDF</button>
+  <input id="tb-username" type="text" placeholder="Your name" style="width:100px;font-size:11px;padding:2px 6px;border:1px solid var(--sbb);border-radius:4px;background:var(--bg);color:var(--fg)" oninput="localStorage.setItem('jem_username',this.value)">
+  <button id="btn-share" onclick="saveSharedSettings()" style="font-size:11px;padding:3px 8px;border:1px solid var(--sbb);border-radius:4px;background:var(--bg);color:var(--fg);cursor:pointer">💾 Save &amp; Share</button>
+  <span id="share-status" style="font-size:10px;color:var(--muted)"></span>
 </div>
 <div id="main">
 <div id="sidebar">
@@ -2686,6 +2689,98 @@ function importPreset(){const i=document.createElement('input');i.type='file';i.
 function resetAll(){if(!confirm('Reset everything?'))return;location.reload();}
 function buildPresetSel(){const s=document.getElementById('preset-sel');s.innerHTML=state.presets.map((p,i)=>`<option value="${i}">${p.name}</option>`).join('')||'<option value="">No presets</option>';}
 
+// -- SHARED SETTINGS --
+let lastKnownSHA = null;
+
+async function loadSharedSettings(){
+  try{
+    const res=await fetch('https://raw.githubusercontent.com/mchein-bit/jem-index/main/settings.json?t='+Date.now());
+    if(!res.ok)return;
+    const s=await res.json();
+    // Also fetch the SHA via API so we can detect conflicts on save
+    try{
+      const metaRes=await fetch('https://api.github.com/repos/mchein-bit/jem-index/contents/settings.json',{headers:{Accept:'application/vnd.github+json'}});
+      if(metaRes.ok){const m=await metaRes.json();lastKnownSHA=m.sha||null;}
+    }catch{}
+    if(!s||(!s.rules&&!s.design))return;
+    if(s.rules&&Object.keys(s.rules).length)state.rules={...state.rules,...s.rules};
+    if(s.design&&Object.keys(s.design).length){
+      state.design={...state.design,...s.design};
+      if(s.design.typo)state.design.typo={...state.design.typo,...s.design.typo};
+    }
+    buildSegChecklist();buildSegOrder();buildTypoPanel();buildSectionRulesList();buildSeeAlsoPanel();updateDataSectionStatus(activeSection);
+    if(s.updatedAt||s.updatedBy){
+      const timeStr=s.updatedAt?new Date(s.updatedAt).toLocaleString():'';
+      const by=s.updatedBy||'';
+      const statusEl=document.getElementById('share-status');
+      if(statusEl)statusEl.textContent=by?'Last saved by '+by+' at '+timeStr:'Last saved at '+timeStr;
+    }
+  }catch(e){console.warn('loadSharedSettings:',e);}
+}
+
+async function saveSharedSettings(){
+  let token=localStorage.getItem('jem_gh_token');
+  if(!token){token=prompt('Enter your GitHub personal access token (needs repo write):');if(!token)return;localStorage.setItem('jem_gh_token',token);}
+  const username=(document.getElementById('tb-username').value||localStorage.getItem('jem_username')||'').trim();
+  const btn=document.getElementById('btn-share');
+  const status=document.getElementById('share-status');
+  btn.disabled=true;
+  btn.textContent='Saving...';
+  status.style.color='var(--muted)';
+  status.textContent='Saving…';
+  try{
+    const api='https://api.github.com/repos/mchein-bit/jem-index/contents/settings.json';
+    const headers={'Authorization':'token '+token,'Accept':'application/vnd.github+json','Content-Type':'application/json'};
+
+    // Fresh GET to resolve current SHA and detect conflicts
+    const getRes=await fetch(api,{headers});
+    console.log('GET settings.json status:',getRes.status);
+    let currentSHA=null;
+    if(getRes.ok){
+      const meta=await getRes.json();
+      currentSHA=meta.sha||null;
+    }else if(getRes.status!==404){
+      const errBody=await getRes.json();
+      console.error('GET error body:',errBody);
+      throw new Error('GET failed ('+getRes.status+'): '+(errBody.message||'unknown error'));
+    }
+
+    // Conflict check: if we loaded a SHA earlier and GitHub now has a different one
+    if(lastKnownSHA&&currentSHA&&currentSHA!==lastKnownSHA){
+      const proceed=confirm('Someone else saved changes since you last loaded. Their changes will be overwritten. Save anyway?');
+      if(!proceed){
+        status.style.color='var(--muted)';
+        status.textContent='Save cancelled.';
+        btn.disabled=false;btn.textContent='💾 Save & Share';
+        return;
+      }
+    }
+
+    const payload={version:1,updatedAt:new Date().toISOString(),updatedBy:username,rules:state.rules,design:state.design};
+    const content=btoa(unescape(encodeURIComponent(JSON.stringify(payload,null,2))));
+    const body={message:'update settings',content};
+    if(currentSHA)body.sha=currentSHA;
+
+    const putRes=await fetch(api,{method:'PUT',headers,body:JSON.stringify(body)});
+    if(!putRes.ok){
+      const errBody=await putRes.json();
+      console.error('PUT error body:',errBody);
+      throw new Error(errBody.message||String(putRes.status));
+    }
+    const putData=await putRes.json();
+    lastKnownSHA=putData.content&&putData.content.sha?putData.content.sha:currentSHA;
+
+    const timeStr=new Date().toLocaleString();
+    status.style.color='green';
+    status.textContent=username?'Last saved by '+username+' at '+timeStr:'Last saved at '+timeStr;
+  }catch(e){
+    status.style.color='red';
+    status.textContent=e.message||String(e);
+  }finally{
+    btn.disabled=false;btn.textContent='💾 Save & Share';
+  }
+}
+
 // -- INIT --
 (function(){
   try{const s=localStorage.getItem('jem_p');if(s)state.presets=JSON.parse(s);}catch{}
@@ -2693,7 +2788,8 @@ function buildPresetSel(){const s=document.getElementById('preset-sel');s.innerH
   try{const ld=localStorage.getItem('jem_loaded');if(ld)state.loadedData=JSON.parse(ld);}catch{}
   buildSecTabs();buildSegChecklist();buildSegOrder();buildTypoPanel();buildPresetSel();buildAliasList();buildSectionRulesList();buildSeeAlsoPanel();updateDataSectionStatus(activeSection);
   updateSecNote(activeSection);
-  render();
+  const _un=localStorage.getItem('jem_username');if(_un){const el=document.getElementById('tb-username');if(el)el.value=_un;}
+  loadSharedSettings().then(()=>render()).catch(()=>render());
   // Re-render once web fonts are loaded so measurements use correct font metrics
   if(document.fonts&&document.fonts.ready){
     document.fonts.ready.then(()=>{ _doRender(); });
